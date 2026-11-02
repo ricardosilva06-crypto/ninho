@@ -253,6 +253,7 @@ function vHome(){
       : `<div><h2 style="font-size:26px">O vosso cantinho partilhado</h2><p style="opacity:.9;margin-top:6px">Diz-nos desde quando estão juntos e contamos os dias.</p></div>`}
     <div class="row">
       ${together === null ? `<button class="chip" data-act="couple">Definir a nossa data</button>` : ''}
+      ${memberIds().length < 2 ? `<button class="chip" data-act="invite">Convidar a minha cara-metade</button>` : ''}
       ${nx ? `<a class="chip" href="#datas">${nx.days===0?'Hoje':'Faltam '+nx.days+' d'} · ${esc(nx.title)}</a>` : `<a class="chip" href="#datas">Adicionar uma data especial</a>`}
     </div>
   </section>
@@ -516,7 +517,7 @@ function vNos(){
   const ids = memberIds(); const c = couple(); const code = S.household && S.household.invite_code;
   return header('Nós dois','nos') + `<div class="stack">${ids.map(id => { const m = members().find(x => x.id === id) || {}; return `<div class="card row">${avatar(id,52)}<div class="grow"><h3>${esc(nameOf(id))}${id===S.uid?' <span class="pill">tu</span>':''}</h3><div class="small muted">${m.aniversario?'Aniversário: '+fmtDate(m.aniversario):'Sem aniversário definido'}</div></div>${id===S.uid?`<button class="iconbtn" data-act="editMe" aria-label="Editar o meu perfil">${ic('edit')}</button>`:''}</div>`; }).join('')}</div>
   <div class="card stack" style="margin-top:14px"><div class="row between"><div class="label">O nosso ninho</div><button class="btn sm" data-act="couple">Editar</button></div><p><b>${esc(c.nome||'Ninho')}</b></p><p class="muted small">${c.desde?'Juntos desde '+fmtDate(c.desde):'Ainda sem data de início.'}</p></div>
-  ${code ? `<div class="card stack" style="margin-top:14px"><div class="label">Código de convite</div><div class="row between"><b class="num" style="font-family:var(--display);font-size:28px;letter-spacing:.12em">${esc(code)}</b><button class="btn sm" data-act="copy" data-v="${esc(code)}">Copiar</button></div><p class="small muted">A tua namorada cria conta na app e escolhe "Entrar num ninho" com este código.</p></div>` : ''}
+  ${code ? `<div class="card stack" style="margin-top:14px"><div class="label">Código de convite</div><div class="row between"><b class="num" style="font-family:var(--display);font-size:28px;letter-spacing:.12em">${esc(code)}</b><button class="btn sm" data-act="copy" data-v="${esc(code)}">Copiar</button></div><button class="btn primary" data-act="invite">Enviar convite</button><p class="small muted">A tua namorada cria conta na app e escolhe "Entrar num ninho" com este código.</p></div>` : ''}
   <div class="card stack" style="margin-top:14px"><div class="label">Conta</div><p class="small">${esc(S.email||'')}</p><button class="btn" data-act="logout" style="justify-self:start">Terminar sessão</button></div>`;
 }
 
@@ -586,7 +587,7 @@ const byId = (c, id) => S.data[c].find(x => x.id === id);
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, id = b.dataset.id;
-  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout'].includes(a);
+  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout','invite'].includes(a);
   if (needW && !S.writable) { toast('Estás em modo de leitura.'); return; }
   switch(a){
     case 'couple': { const c = couple(); sheet({title:'O nosso ninho', fields:[{id:'nome',label:'Nome da app',value:c.nome||'Ninho'},{id:'desde',label:'Juntos desde',type:'date',value:c.desde}], onSave: async v => { await store.set('definicoes','casal',v); toast('Guardado'); }}); break; }
@@ -641,6 +642,12 @@ document.addEventListener('click', async (e) => {
     case 'newContact': contactForm(); break;
     case 'editContact': contactForm(byId('contactos', id)); break;
     case 'logout': await S.sb.auth.signOut(); location.hash = ''; break;
+    case 'invite': {
+      const code = S.household && S.household.invite_code; const link = location.origin + location.pathname;
+      const text = `Junta-te ao nosso Ninho 💛\n1. Abre ${link}\n2. Cria conta\n3. Escolhe "Entrar num ninho" e usa o código ${code}`;
+      if (navigator.share) { try { await navigator.share({title:'Ninho', text}); } catch(err) {} }
+      else { try { await navigator.clipboard.writeText(text); toast('Convite copiado. Cola-o no WhatsApp.'); } catch(err) { toast(text); } }
+      break; }
     case 'copy': try { await navigator.clipboard.writeText(b.dataset.v); toast('Copiado'); } catch(err) { toast(b.dataset.v); } break;
   }
 });
