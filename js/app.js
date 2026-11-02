@@ -142,7 +142,7 @@ function sheet({title, fields=[], save='Guardar', onSave, onDelete, extra=''}){
     const v = {};
     fields.forEach(f => {
       const el = form.querySelector('#f-'+f.id); if (!el) return;
-      v[f.id] = f.type === 'swatch' ? ((el.querySelector('input:checked')||{}).value || '') : f.type === 'checkbox' ? el.checked : f.type === 'file' ? el.files : f.type === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value.trim();
+      v[f.id] = f.type === 'swatch' ? ((el.querySelector('input:checked')||{}).value || '') : f.type === 'checkbox' ? el.checked : f.type === 'file' ? el.files : f.type === 'number' ? parseNum(el.value) : el.value.trim();
     });
     const missing = fields.find(f => f.required && !v[f.id] && v[f.id] !== 0);
     if (missing) { toast(`Preenche: ${missing.label}`); return; }
@@ -168,6 +168,12 @@ function wireTagPickers(form){
     };
   });
 }
+function parseNum(raw){
+  let t = String(raw||'').replace(/[\s€]/g, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const n = Number(t); return isFinite(n) ? n : null;
+}
 function fieldHTML(f){
   const id = 'f-'+f.id, val = f.value ?? '';
   if (f.type === 'swatch') return `<div class="field"><span>${esc(f.label)}</span><div class="tagpick" id="${id}" role="radiogroup">${etiquetas().map(t => tagChip(id, t, val===t.id)).join('')}<label class="tagchip none"><input type="radio" name="${id}" value="" ${!tagOf(val)?'checked':''}><span>Sem etiqueta</span></label><button type="button" class="tagchip add" data-newtag="${id}">+ Nova</button></div><div class="tagnew" hidden><input class="in" placeholder="Nome (ex.: Ginásio)" maxlength="24"><div class="swatches">${TAGS.map(([k,c],i) => `<label style="--sw:${c}"><input type="radio" name="${id}-c" value="${k}" ${i===0?'checked':''} aria-label="${k}"><i></i></label>`).join('')}</div><button type="button" class="btn">Criar etiqueta</button></div></div>`;
@@ -176,7 +182,7 @@ function fieldHTML(f){
   if (f.type === 'textarea') input = `<textarea class="in" id="${id}" placeholder="${esc(f.ph||'')}">${esc(val)}</textarea>`;
   else if (f.type === 'select') input = `<select class="in" id="${id}">${f.options.map(o => `<option value="${esc(o.v)}" ${String(o.v)===String(val)?'selected':''}>${esc(o.t)}</option>`).join('')}</select>`;
   else if (f.type === 'file') input = `<input class="in" type="file" id="${id}" ${f.accept?`accept="${f.accept}"`:''} ${f.multiple?'multiple':''}>`;
-  else input = `<input class="in" id="${id}" type="${f.type||'text'}" value="${esc(val)}" placeholder="${esc(f.ph||'')}" ${f.type==='number'?'step="any" inputmode="decimal"':''} ${f.list?`list="${f.list}"`:''}>`;
+  else input = `<input class="in" id="${id}" type="${f.type==='number'?'text':(f.type||'text')}" value="${esc(f.type==='number' && val !== '' ? String(val).replace('.', ',') : val)}" placeholder="${esc(f.ph||(f.type==='number'?'0,00':''))}" ${f.type==='number'?'inputmode="decimal" autocomplete="off"':''} ${f.list?`list="${f.list}"`:''}>`;
   return `<label class="field"><span>${esc(f.label)}</span>${input}${f.hint?`<small class="muted">${esc(f.hint)}</small>`:''}</label>`;
 }
 
