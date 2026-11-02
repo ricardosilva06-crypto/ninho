@@ -248,3 +248,10 @@ h1{font-weight:700}
 .card{border-radius:18px}
 @media (prefers-reduced-motion:reduce){.tile{animation:none;transition:none}.polaroid,.fab{transition:none}}
 @media (max-width:360px){.door{grid-template-columns:1fr}.hello{font-size:28px}}
+
+html,body{overflow-x:hidden}
+.home-top > div{min-width:0;flex:1}
+.hello{overflow-wrap:anywhere}
+.hello em{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.avatars{flex:none}
+.door > *{min-width:0}

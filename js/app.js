@@ -96,7 +96,7 @@ function nameOf(id){
   if (!id) return 'Alguém';
   const m = members().find(x => x.id === id);
   if (m && m.apelido) return m.apelido;
-  if (m && m.email) return m.email.split('@')[0];
+  if (m && m.email) { const w = m.email.split('@')[0].replace(/[0-9]+/g,' ').split(/[._\-+ ]+/).filter(Boolean)[0] || m.email.split('@')[0]; return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }
   return id === S.uid ? 'Eu' : 'Alguém';
 }
 const PALETTE = ['#D9485F','#3D63C9','#1E8A5A','#7B5CD6','#E38A1C','#14A08C'];
@@ -262,6 +262,7 @@ function vHome(){
         ? `<div class="count"><span>juntos há</span><b>${together.toLocaleString('pt-PT')}</b><span>${together===1?'dia':'dias'} ♥</span></div>`
         : `<button class="mini-btn" data-act="couple">Desde quando estão juntos? ✎</button>`}
       ${nx ? `<a class="ticket" href="#datas"><b>${nx.days===0?'🎉':nx.days}</b><small>${nx.days===0?'é hoje':nx.days===1?'dia para':'dias para'}</small><span>${esc(nx.title)}</span></a>` : `<a class="mini-btn" href="#datas">+ Uma data especial</a>`}
+      ${!(members().find(x => x.id === S.uid) || {}).apelido ? `<button class="mini-btn" data-act="editMe">Como queres ser chamado? ✎</button>` : ''}
       ${memberIds().length < 2 ? `<button class="mini-btn" data-act="invite">Convidar a minha cara-metade 💌</button>` : ''}
     </div>
   </section>
