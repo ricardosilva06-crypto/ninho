@@ -229,7 +229,7 @@ const couple = () => S.data.definicoes.find(x => x.id === 'casal') || {};
 
 /* ---------- views ---------- */
 function header(title, color){
-  return `<header class="top"><div class="brand"><a class="back" href="#inicio" aria-label="Voltar ao início">${ic('back')}</a><h1 style="font-size:24px;${color?`color:var(--c-${color})`:''}">${esc(title)}</h1></div></header>${statusBar()}`;
+  return `<header class="top"><div class="brand"><a class="back" href="#inicio" aria-label="Voltar ao início">${ic('back')}</a>${color?`<span class="hdr-ico" style="--c:var(--c-${color});--t:var(--t-${color})">${ic(color)}</span>`:''}<h1 class="ptitle">${esc(title)}</h1></div></header>${statusBar()}`;
 }
 function statusBar(){
   if (S.mode === 'offline') return `<div class="status">Sem internet. Estás a ver os últimos dados guardados.</div>`;
@@ -239,31 +239,40 @@ function statusBar(){
 const empty = (k, text, cta) => `<div class="empty"><div class="ico" style="--c:var(--c-${k})">${ic(k)}</div><p>${text}</p>${cta?`<button class="btn primary sm" data-act="${cta[0]}">${cta[1]}</button>`:''}</div>`;
 const fab = (act) => S.writable ? `<button class="fab" data-act="${act}" aria-label="Adicionar">${ic('plus')}</button>` : '';
 
+const TILT = [-1.2, 1, -.7, 1.3, -1, .6, -1.4, .9, -.5, 1.1, -.9, .7, -1.1];
+const greeting = () => { const h = new Date().getHours(); return h < 6 ? 'Boa noite' : h < 13 ? 'Bom dia' : h < 20 ? 'Boa tarde' : 'Boa noite'; };
+const NEST_SVG = `<svg viewBox="0 0 120 120" width="70%" aria-hidden="true" fill="none" stroke="#8A7B62" stroke-width="2.4" stroke-linecap="round"><path d="M60 52c-9-14-30-6-22 10 4 8 22 18 22 18s18-10 22-18c8-16-13-24-22-10z" fill="#F2553C" stroke="none"/><path d="M18 78c14 18 70 18 84 0M24 74c16 12 56 12 72 0M14 84c20 22 72 22 92 0M30 90c12 6 48 6 60 0"/><path d="M20 76l10 8M100 76l-10 8M40 88l-6 6M80 88l6 6"/></svg>`;
 function vHome(){
   const c = couple(); const t = today();
   const together = c.desde ? diffDays(parse(c.desde), t) : null;
   const nx = nextSpecial();
   const meal = S.data.refeicoes.find(x => x.id === iso(t));
-  const upcoming = S.data.eventos.filter(e => e.data >= iso(t)).sort((a,b) => (a.data+(a.hora||'')).localeCompare(b.data+(b.hora||''))).slice(0,3);
+  const upcoming = S.data.eventos.filter(e => e.data >= iso(t)).sort((a,b) => (a.data+(a.hora||'')).localeCompare(b.data+(b.hora||''))).slice(0,2);
   const avs = memberIds().slice(0,3).map(id => avatar(id)).join('');
-  return `<header class="top"><div class="brand"><h1>${esc(c.nome || 'Ninho')}</h1></div><a href="#nos" class="avatars" aria-label="Nós dois">${avs}</a></header>${statusBar()}
-  <section class="hero" aria-label="Resumo">
-    <canvas id="hero-canvas" aria-hidden="true"></canvas>
-    ${together !== null && together >= 0
-      ? `<div><div class="label" style="color:rgba(255,255,255,.8)">Juntos há</div><div class="big num">${together.toLocaleString('pt-PT')}</div><div style="font-weight:700">${together===1?'dia':'dias'} · desde ${fmtDate(c.desde)}</div></div>`
-      : `<div><h2 style="font-size:26px">O vosso cantinho partilhado</h2><p style="opacity:.9;margin-top:6px">Diz-nos desde quando estão juntos e contamos os dias.</p></div>`}
-    <div class="row">
-      ${together === null ? `<button class="chip" data-act="couple">Definir a nossa data</button>` : ''}
-      ${memberIds().length < 2 ? `<button class="chip" data-act="invite">Convidar a minha cara-metade</button>` : ''}
-      ${nx ? `<a class="chip" href="#datas">${nx.days===0?'Hoje':'Faltam '+nx.days+' d'} · ${esc(nx.title)}</a>` : `<a class="chip" href="#datas">Adicionar uma data especial</a>`}
+  const photo = [...S.data.galeria].sort((a,b) => (b.ts||0)-(a.ts||0))[0];
+  const msg = S.msgs[0];
+  const me = nameOf(S.uid);
+  const openItems = S.data.listas.flatMap(l => (l.itens||[]).filter(i => !i.feito)).slice(0,3);
+  const tile = (k, n, i, extra='', cls='') => `<a class="tile ${cls}" href="#${k}" style="--c:var(--c-${k});--t:var(--t-${k});--tilt:${TILT[i % TILT.length]}deg;--i:${i};text-decoration:none"><h3>${n}</h3><div class="sub">${esc(subtitle(k))}</div>${extra}<span class="big-ico">${ic(k)}</span></a>`;
+  return `<header class="top home-top"><div><div class="date">${DIAS[t.getDay()]}, ${t.getDate()} de ${MESES[t.getMonth()]}</div><h1 class="hello">${greeting()},<br><em>${esc(me)}</em></h1></div><a href="#nos" class="avatars" aria-label="Nós dois">${avs}</a></header>${statusBar()}
+  <section class="door" aria-label="O nosso cantinho">
+    <a class="polaroid" href="#galeria"><span class="pic">${photo ? `<img src="${blobUrl(photo.foto)}" alt="${esc(photo.legenda||'A nossa foto')}">` : NEST_SVG}</span><span class="cap">${photo && photo.legenda ? esc(photo.legenda) : photo ? 'nós ♥' : 'põe aqui a vossa foto'}</span></a>
+    <div class="door-side">
+      ${together !== null && together >= 0
+        ? `<div class="count"><span>juntos há</span><b>${together.toLocaleString('pt-PT')}</b><span>${together===1?'dia':'dias'} ♥</span></div>`
+        : `<button class="mini-btn" data-act="couple">Desde quando estão juntos? ✎</button>`}
+      ${nx ? `<a class="ticket" href="#datas"><b>${nx.days===0?'🎉':nx.days}</b><small>${nx.days===0?'é hoje':nx.days===1?'dia para':'dias para'}</small><span>${esc(nx.title)}</span></a>` : `<a class="mini-btn" href="#datas">+ Uma data especial</a>`}
+      ${memberIds().length < 2 ? `<button class="mini-btn" data-act="invite">Convidar a minha cara-metade 💌</button>` : ''}
     </div>
   </section>
-  <section class="today" aria-label="Hoje">
-    ${meal && (meal.almoco||meal.jantar) ? `<a class="card" href="#refeicoes" style="text-decoration:none;color:inherit;display:flex;gap:12px;align-items:center"><div class="ico" style="--c:var(--c-refeicoes);align-self:center">${ic('refeicoes')}</div><div class="grow"><div class="label">Hoje à mesa</div><div style="font-weight:700">${esc([meal.almoco,meal.jantar].filter(Boolean).join(' · '))}</div></div></a>` : ''}
-    ${upcoming.length ? `<div class="card"><div class="row between"><div class="label">Próximos eventos</div><a href="#calendario" class="small">Ver tudo</a></div>${upcoming.map(e => `<div class="list-item"><div class="dot" style="--c:var(--c-calendario)"></div><div class="grow"><div style="font-weight:700">${esc(e.titulo)}</div><div class="small muted">${e.data===iso(t)?'Hoje':fmtDate(e.data)}${e.hora?' · '+esc(e.hora):''}</div></div></div>`).join('')}</div>` : ''}
-  </section>
+  <a class="sticky" href="#mensagens">${msg ? `<span class="hand">${esc(msg.texto.length > 120 ? msg.texto.slice(0,120)+'…' : msg.texto)}</span><small>${msg.de===S.uid?'tu':esc(nameOf(msg.de))} · ${new Date(msg.ts||0).toDateString()===new Date().toDateString()?'hoje':fmtDate(iso(new Date(msg.ts||0)))}</small>` : `<span class="hand">Deixa aqui um recado para a tua cara-metade…</span><small>toca para escrever</small>`}</a>
+  ${(meal && (meal.almoco||meal.jantar)) || upcoming.length ? `<section class="agenda" aria-label="Hoje">
+    ${meal && (meal.almoco||meal.jantar) ? `<a href="#refeicoes"><div class="when">hoje<b>🍽</b></div><div class="grow"><div class="small muted">À mesa</div><b>${esc([meal.almoco,meal.jantar].filter(Boolean).join(' · '))}</b></div></a>` : ''}
+    ${upcoming.map(e => { const d = parse(e.data); return `<a href="#calendario"><div class="when">${MESES[d.getMonth()].slice(0,3)}<b>${d.getDate()}</b></div><div class="grow"><b>${esc(e.titulo)}</b><div class="small muted">${e.data===iso(t)?'Hoje':DIAS[d.getDay()]}${e.hora?' · '+esc(e.hora):''}</div></div></a>`; }).join('')}
+  </section>` : ''}
   <section class="tiles" aria-label="Módulos">
-    ${MODS.map(([k,n]) => `<a class="tile" href="#${k}" style="--c:var(--c-${k});text-decoration:none;color:inherit"><div><h3>${n}</h3><div class="sub">${esc(subtitle(k))}</div></div><div class="ico">${ic(k)}</div></a>`).join('')}
+    ${tile('listas','Listas',0, openItems.length ? `<div class="peek">${openItems.map(i => `<span><i></i>${esc(i.texto)}</span>`).join('')}</div>` : '', 'wide')}
+    ${MODS.filter(([k]) => k !== 'listas').map(([k,n],i) => tile(k, n, i+1)).join('')}
   </section>`;
 }
 
@@ -486,7 +495,7 @@ function vDatas(){
   const t = today();
   const L = S.data.datas.map(s => { const n = nextOcc(s.data, s.anual !== false); return {...s, n, days:diffDays(t,n), years: s.anual !== false ? n.getFullYear() - parse(s.data).getFullYear() : null}; }).sort((a,b) => (a.days<0)-(b.days<0) || Math.abs(a.days)-Math.abs(b.days));
   return header('Datas especiais','datas') + (L.length ? `<div class="stack">${L.map(s => `<button class="card row" style="border:0;text-align:left;width:100%" data-act="editDay" data-id="${s.id}">
-    <div style="width:74px;text-align:center;flex:none"><div class="num" style="font-family:var(--display);font-size:34px;font-weight:800;color:var(--c-datas);line-height:1">${s.days<0?'✓':s.days}</div><div class="small muted">${s.days===0?'é hoje!':s.days<0?'passou':s.days===1?'dia':'dias'}</div></div>
+    <div style="width:74px;text-align:center;flex:none"><div class="num" style="font-family:var(--display);font-size:34px;font-weight:800;color:color-mix(in srgb,var(--c-datas) 75%,var(--ink));line-height:1">${s.days<0?'✓':s.days}</div><div class="small muted">${s.days===0?'é hoje!':s.days<0?'passou':s.days===1?'dia':'dias'}</div></div>
     <div class="grow"><h3>${esc(s.titulo)}</h3><div class="small muted">${fmtDate(iso(s.n))}${s.years>0?` · ${s.years} ${s.years===1?'ano':'anos'}`:''}</div></div></button>`).join('')}</div>`
     : empty('datas','Aniversários, o dia em que se conheceram, a próxima viagem… vejam quanto falta.',['newDay','Adicionar data'])) + fab('newDay');
 }
@@ -560,7 +569,7 @@ function vReceitas(){
     <button class="btn" style="margin-top:12px;width:100%" data-act="planRecipe" data-id="${r.id}">Pôr no plano de refeições</button>`;
   }
   const R = [...S.data.receitas].sort((a,b) => (a.titulo||'').localeCompare(b.titulo||''));
-  return header('Receitas','receitas') + (R.length ? `<div class="tiles" style="margin-top:0">${R.map(r => `<button class="tile" style="--c:var(--c-receitas);padding:0;overflow:hidden;min-height:0;justify-content:flex-start" data-act="openRecipe" data-id="${r.id}">${r.foto?`<img src="${blobUrl(r.foto)}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block">`:`<div style="width:100%;aspect-ratio:4/3;display:grid;place-items:center;background:color-mix(in srgb,var(--c-receitas) 14%,transparent);color:var(--c-receitas)">${ic('receitas').replace('<svg','<svg style="width:40px;height:40px"')}</div>`}<div style="padding:10px 12px 14px"><h3 style="font-size:16px">${esc(r.titulo)}</h3><div class="sub">${r.tempo?esc(r.tempo)+' min':''}</div></div></button>`).join('')}</div>`
+  return header('Receitas','receitas') + (R.length ? `<div class="tiles" style="margin-top:0">${R.map(r => `<button class="tile rcard" style="--c:var(--c-receitas);padding:0;overflow:hidden;min-height:0;justify-content:flex-start" data-act="openRecipe" data-id="${r.id}">${r.foto?`<img src="${blobUrl(r.foto)}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block">`:`<div style="width:100%;aspect-ratio:4/3;display:grid;place-items:center;background:color-mix(in srgb,var(--c-receitas) 14%,transparent);color:var(--c-receitas)">${ic('receitas').replace('<svg','<svg style="width:40px;height:40px"')}</div>`}<div style="padding:10px 12px 14px"><h3 style="font-size:16px">${esc(r.titulo)}</h3><div class="sub">${r.tempo?esc(r.tempo)+' min':''}</div></div></button>`).join('')}</div>`
     : empty('receitas','Guardem as receitas que fazem juntos e as que querem experimentar.',['newRecipe','Adicionar receita'])) + fab('newRecipe');
 }
 function recipeForm(r={}){
