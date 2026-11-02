@@ -390,9 +390,53 @@ function movRow(r){
 }
 function vOrcamento(){
   const tab = view.budTab || 'movimentos';
-  const tabs = `<div class="seg" style="margin-bottom:14px">${[['movimentos','Movimentos'],['conjunta','Conta conjunta'],['vaquinhas','Vaquinhas']].map(([k,t]) => `<button class="${tab===k?'on':''}" data-act="budTab" data-t="${k}">${t}</button>`).join('')}</div>`;
-  const body = tab === 'conjunta' ? vConjunta() : tab === 'vaquinhas' ? vVaquinhas() : vMovimentos();
+  const tabs = `<div class="seg" style="margin-bottom:14px">${[['movimentos','Movimentos'],['conjunta','Conjunta'],['vaquinhas','Vaquinhas'],['relatorio','Relatório']].map(([k,t]) => `<button class="${tab===k?'on':''}" data-act="budTab" data-t="${k}">${t}</button>`).join('')}</div>`;
+  const body = tab === 'relatorio' ? vRelatorio() : tab === 'conjunta' ? vConjunta() : tab === 'vaquinhas' ? vVaquinhas() : vMovimentos();
   return header('Orçamento','orcamento') + tabs + body;
+}
+/* Spending report */
+const CAT_STYLE = { Casa:['🏠','#4C7DFF'], Supermercado:['🛒','#3FB37F'], Restaurantes:['🍽','#FF7A61'], Transportes:['🚗','#19A7B0'], Lazer:['🎉','#F2B630'], 'Saúde':['💊','#EC5FA0'], Viagens:['✈️','#8B6CF0'], Presentes:['🎁','#E8833A'], Contas:['🧾','#5C6BC0'], 'Contribuição':['🤝','#8A948E'], Outros:['📦','#A1887F'] };
+const catStyle = (c) => CAT_STYLE[c] || CAT_STYLE.Outros;
+function repRange(){
+  const t = today(), y = t.getFullYear(), m = t.getMonth();
+  const per = view.repPer || 'mes';
+  if (per === 'mes') return [iso(new Date(y,m,1)), iso(new Date(y,m+1,0)), 'Este mês'];
+  if (per === 'mesant') return [iso(new Date(y,m-1,1)), iso(new Date(y,m,0)), 'Mês passado'];
+  if (per === '3m') return [iso(new Date(y,m-2,1)), iso(new Date(y,m+1,0)), 'Últimos 3 meses'];
+  if (per === 'ano') return [iso(new Date(y,0,1)), iso(new Date(y,11,31)), `Ano de ${y}`];
+  const a = view.repFrom || iso(new Date(y,m,1)), b = view.repTo || iso(t);
+  return a <= b ? [a, b, 'Personalizado'] : [b, a, 'Personalizado'];
+}
+function vRelatorio(){
+  const [from, to] = repRange(); const conta = view.repConta || 'todas';
+  const inConta = r => conta === 'todas' || (conta === 'conjunta' ? isJoint(r) : !isJoint(r));
+  const inRange = (r, a, b) => (r.data||'') >= a && (r.data||'') <= b;
+  const out = S.data.orcamento.filter(r => r.tipo !== 'receita' && inConta(r) && inRange(r, from, to));
+  const inc = S.data.orcamento.filter(r => r.tipo === 'receita' && inConta(r) && inRange(r, from, to));
+  const total = sumV(out);
+  /* same-length period right before, for comparison */
+  const len = diffDays(parse(from), parse(to)) + 1;
+  const pTo = iso(addDays(parse(from), -1)), pFrom = iso(addDays(parse(from), -len));
+  const prev = sumV(S.data.orcamento.filter(r => r.tipo !== 'receita' && inConta(r) && inRange(r, pFrom, pTo)));
+  const delta = prev ? Math.round((total - prev) / prev * 100) : null;
+  const byCat = {}; out.forEach(r => { const c = r.cat || 'Outros'; (byCat[c] ||= {v:0, n:0, rows:[]}); byCat[c].v += +r.valor||0; byCat[c].n++; byCat[c].rows.push(r); });
+  const cats = Object.entries(byCat).sort((a,b) => b[1].v - a[1].v);
+  const byWho = {}; out.forEach(r => { const k = r.pago || '?'; byWho[k] = (byWho[k]||0) + (+r.valor||0); });
+  const per = view.repPer || 'mes'; const open = view.repCat;
+  const chip = (k, t) => `<button class="rchip ${per===k?'on':''}" data-act="repPer" data-p="${k}">${t}</button>`;
+  return `<div class="rchips">${chip('mes','Este mês')}${chip('mesant','Mês passado')}${chip('3m','3 meses')}${chip('ano','Este ano')}${chip('custom','Escolher datas')}</div>
+  ${per === 'custom' ? `<div class="row" style="gap:8px;margin-bottom:10px"><label class="field grow" style="margin:0"><span>De</span><input class="in" type="date" data-rep="repFrom" value="${from}"></label><label class="field grow" style="margin:0"><span>Até</span><input class="in" type="date" data-rep="repTo" value="${to}"></label></div>` : ''}
+  <div class="seg" style="margin-bottom:14px">${[['todas','Tudo'],['pessoal','Pessoal'],['conjunta','Conjunta']].map(([k,t]) => `<button class="${conta===k?'on':''}" data-act="repConta" data-c="${k}">${t}</button>`).join('')}</div>
+  <div class="card stack rep-hero">
+    <div class="label">${fmtDate(from)} – ${fmtDate(to)}</div>
+    <div class="row between" style="align-items:flex-end"><div><div class="small muted">Gastaram</div><div class="num rep-total">${eur(total)}</div></div>
+    ${delta !== null ? `<span class="pill" style="--c:${delta > 0 ? 'var(--bad)' : 'var(--good)'}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)}% vs. antes</span>` : ''}</div>
+    ${total ? `<div class="stackbar">${cats.map(([c,o]) => `<i style="flex:${o.v};background:${catStyle(c)[1]}" title="${esc(c)}"></i>`).join('')}</div>` : ''}
+    <div class="row between small muted"><span>${out.length} ${out.length===1?'despesa':'despesas'} · ${eur(total/len)}/dia</span><span>Entradas ${eur(sumV(inc))}</span></div>
+  </div>
+  ${cats.length ? `<div class="rep-grid">${cats.map(([c,o]) => { const [e, col] = catStyle(c); const k = Math.round(o.v/total*100); return `<button class="rep-card ${open===c?'open':''}" style="--rc:${col}" data-act="repCat" data-c="${esc(c)}"><span class="rep-emo">${e}</span><b>${esc(c)}</b><span class="num rep-v">${eur(o.v)}</span><span class="small">${k}% · ${o.n} ${o.n===1?'despesa':'despesas'}</span><span class="rep-bar"><i style="width:${k}%"></i></span></button>`; }).join('')}</div>` : empty('orcamento','Sem despesas neste período.',['newMov','Adicionar despesa'])}
+  ${open && byCat[open] ? `<div class="label" style="margin:18px 4px 8px">${catStyle(open)[0]} ${esc(open)}</div><div class="card">${byCat[open].rows.sort((a,b) => b.data.localeCompare(a.data)).map(movRow).join('')}</div>` : ''}
+  ${Object.keys(byWho).length ? `<div class="card stack" style="margin-top:14px"><div class="label">Quem pagou</div>${Object.entries(byWho).sort((a,b) => b[1]-a[1]).map(([k,v]) => `<div class="stack" style="gap:4px"><div class="row between small"><span>${k==='cartao'?'💳 Cartão conjunto':esc(nameOf(k))}</span><span class="num">${eur(v)}</span></div><div class="bar"><i style="width:${Math.round(v/total*100)}%;background:${k==='cartao'?'var(--c-calendario)':colorOf(k)}"></i></div></div>`).join('')}</div>` : ''}`;
 }
 function vMovimentos(){
   const mk = view.budMonth;
@@ -411,7 +455,7 @@ function vMovimentos(){
   return monthNav() + `
   <div class="kpis"><div class="card"><span class="label">Gastos</span><b class="num money-neg">${eur(gastos)}</b></div><div class="card"><span class="label">Entradas</span><b class="num money-pos">${eur(entradas)}</b></div><div class="card"><span class="label">Saldo</span><b class="num ${entradas-gastos>=0?'money-pos':'money-neg'}">${eur(entradas-gastos)}</b></div></div>
   ${settle ? `<div class="card stack" style="margin-top:12px"><div class="label">Contas entre os dois</div>${settle}<p class="small muted">Conta só as despesas pessoais marcadas como "a meias" ainda por acertar.</p></div>` : ''}
-  ${cats.length ? `<div class="card stack" style="margin-top:12px"><div class="label">Por categoria</div>${cats.map(([c,v]) => `<div class="stack" style="gap:4px"><div class="row between small"><span>${esc(c)}</span><span class="num">${eur(v)}</span></div><div class="bar"><i style="width:${Math.round(v/gastos*100)}%"></i></div></div>`).join('')}</div>` : ''}
+  ${cats.length ? `<div class="card stack" style="margin-top:12px"><div class="label">Por categoria</div>${cats.map(([c,v]) => `<div class="stack" style="gap:4px"><div class="row between small"><span>${catStyle(c)[0]} ${esc(c)}</span><span class="num">${eur(v)}</span></div><div class="bar"><i style="width:${Math.round(v/gastos*100)}%;background:${catStyle(c)[1]}"></i></div></div>`).join('')}</div>` : ''}
   <div class="label" style="margin:20px 4px 8px">Movimentos</div>
   ${rows.length ? `<div class="card">${rows.map(movRow).join('')}</div>` : empty('orcamento','Sem movimentos neste mês.',['newMov','Adicionar despesa'])}` + fab('newMov');
 }
@@ -727,6 +771,7 @@ function drawHero(){
 
 /* ---------- actions ---------- */
 const byId = (c, id) => S.data[c].find(x => x.id === id);
+document.addEventListener('change', (e) => { const k = e.target.dataset && e.target.dataset.rep; if (k && e.target.value) { view[k] = e.target.value; view.repCat = null; render(); } });
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, id = b.dataset.id;
@@ -749,6 +794,9 @@ document.addEventListener('click', async (e) => {
     case 'newMov': movForm(); break;
     case 'editMov': movForm(byId('orcamento', id)); break;
     case 'budTab': view.budTab = b.dataset.t; render(); break;
+    case 'repPer': view.repPer = b.dataset.p; view.repCat = null; render(); break;
+    case 'repConta': view.repConta = b.dataset.c; view.repCat = null; render(); break;
+    case 'repCat': view.repCat = view.repCat === b.dataset.c ? null : b.dataset.c; render(); break;
     case 'newJointMov': movForm({}, {conta:'conjunta', cat:'Casa'}); break;
     case 'jointDeposit': movForm({}, {conta:'conjunta', tipo:'receita', cat:'Contribuição', titulo:'Contribuição mensal', valor:+b.dataset.v, pago:id}); break;
     case 'jointSettings': { const cfg = jointCfg(); const sal = cfg.salarios || {}; const ids = memberIds();
