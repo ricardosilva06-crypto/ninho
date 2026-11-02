@@ -376,7 +376,7 @@ const jointCfg = () => S.data.definicoes.find(x => x.id === 'conjunta') || {};
 const isJoint = (r) => r.conta === 'conjunta';
 function jointBalance(){
   const J = S.data.orcamento.filter(isJoint);
-  let bal = sumV(J.filter(r => r.tipo === 'receita')) - sumV(J.filter(r => r.tipo !== 'receita'));
+  let bal = (+jointCfg().inicial || 0) + sumV(J.filter(r => r.tipo === 'receita')) - sumV(J.filter(r => r.tipo !== 'receita'));
   S.data.vaquinhas.forEach(v => (v.movs||[]).forEach(m => { if (m.origem === 'conjunta') bal -= (+m.valor||0); }));
   return bal;
 }
@@ -386,7 +386,7 @@ function monthNav(){
   return `<div class="row between" style="margin-bottom:12px"><button class="iconbtn" data-act="budPrev" aria-label="Mês anterior">${ic('back')}</button><h3 style="text-transform:capitalize">${MESES[mo-1]} ${y}</h3><button class="iconbtn" data-act="budNext" aria-label="Mês seguinte">${ic('chev')}</button></div>`;
 }
 function movRow(r){
-  return `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b>${isJoint(r)?' <span class="pill" style="--c:var(--c-calendario)">Conjunta</span>':''}${r.fatura?` <span class="pill" style="--c:var(--c-documentos)" title="Tem fatura">${ic('clip').replace('<svg','<svg style="width:12px;height:12px;vertical-align:-1px"')} fatura</span>`:''}<div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago?(isJoint(r)?' · '+esc(nameOf(r.pago)):' · pago por '+esc(nameOf(r.pago))):''}${!isJoint(r)&&r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`;
+  return `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b>${isJoint(r)?' <span class="pill" style="--c:var(--c-calendario)">Conjunta</span>':''}${r.fatura?` <span class="pill" style="--c:var(--c-documentos)" title="Tem fatura">${ic('clip').replace('<svg','<svg style="width:12px;height:12px;vertical-align:-1px"')} fatura</span>`:''}<div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago==='cartao'?' · 💳 cartão conjunto':r.pago?(isJoint(r)?' · '+esc(nameOf(r.pago)):' · pago por '+esc(nameOf(r.pago))):''}${!isJoint(r)&&r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`;
 }
 function vOrcamento(){
   const tab = view.budTab || 'movimentos';
@@ -433,7 +433,7 @@ function vConjunta(){
       <div class="label" style="color:rgba(255,255,255,.8)">Saldo da conta conjunta</div>
       <div class="num" style="font-family:var(--display);font-size:38px;font-weight:800;line-height:1">${eur(bal)}</div>
       <div class="small" style="opacity:.9">Cada um contribui com <b>${pct}%</b> do salário${totalExp?` · ${eur(totalExp)} por mês no total`:''}</div>
-      <button class="chip" data-act="jointSettings" style="justify-self:start">Salários e percentagem</button></div>
+      <button class="chip" data-act="jointSettings" style="justify-self:start">${cfg.inicial == null ? 'Definir saldo inicial e salários' : 'Saldo inicial, salários e %'}</button></div>
     <div style="margin-top:14px">${monthNav()}</div>
     <div class="card stack">${ids.length ? people : '<p class="muted">Ainda não há membros.</p>'}</div>
     <div class="label" style="margin:20px 4px 8px">Movimentos da conta conjunta</div>
@@ -484,10 +484,11 @@ function movForm(r={}, preset={}){
     {id:'data',label:'Data',type:'date',value:r.data||iso(today()),required:true},
     {id:'conta',label:'Conta',type:'select',options:[{v:'pessoal',t:'Pessoal'},{v:'conjunta',t:'Conta conjunta'}],value:r.conta||preset.conta||'pessoal'},
     {id:'cat',label:'Categoria',type:'select',options:CATS.map(c => ({v:c,t:c})),value:r.cat||preset.cat||'Supermercado'},
-    {id:'pago',label:'Quem pagou / transferiu',type:'select',options:whoOptions(false),value:r.pago||preset.pago||S.uid},
+    {id:'pago',label:'Quem pagou / transferiu',type:'select',options:[...whoOptions(false), {v:'cartao',t:'💳 Cartão da conta conjunta'}],value:r.pago||preset.pago||(joint && (r.tipo||preset.tipo||'despesa')==='despesa' ? 'cartao' : S.uid)},
     {id:'partilhado',label:'Despesa a meias (só para conta pessoal)',type:'checkbox',value:r.id ? r.partilhado : !joint},
     {id:'fatura',label:r.fatura?'Trocar fatura':'Fatura (PDF ou foto, opcional)',type:'file',accept:'application/pdf,image/*'}
   ], extra, onSave: async v => {
+    if (v.pago === 'cartao') { v.conta = 'conjunta'; if (v.tipo === 'receita') v.pago = S.uid; }
     const doc = {tipo:v.tipo, titulo:v.titulo, valor:Math.abs(v.valor||0), data:v.data, conta:v.conta, cat:v.cat, pago:v.pago, partilhado:v.conta==='conjunta'?false:v.partilhado, acertado:!!r.acertado, criado:r.criado||Date.now(), fatura:r.fatura||null, faturaTipo:r.faturaTipo||null};
     const old = r.fatura;
     const rm = document.getElementById('f-semfatura');
@@ -751,8 +752,8 @@ document.addEventListener('click', async (e) => {
     case 'newJointMov': movForm({}, {conta:'conjunta', cat:'Casa'}); break;
     case 'jointDeposit': movForm({}, {conta:'conjunta', tipo:'receita', cat:'Contribuição', titulo:'Contribuição mensal', valor:+b.dataset.v, pago:id}); break;
     case 'jointSettings': { const cfg = jointCfg(); const sal = cfg.salarios || {}; const ids = memberIds();
-      sheet({title:'Conta conjunta', fields:[{id:'pct',label:'Percentagem do salário de cada um (%)',type:'number',value:cfg.pct ?? 30}, ...ids.map((m,i) => ({id:'s'+i, label:`Salário líquido de ${nameOf(m)} (€)`, type:'number', value:sal[m]}))],
-        onSave: async v => { const salarios = {}; ids.forEach((m,i) => { if (v['s'+i] != null) salarios[m] = Math.abs(v['s'+i]); }); await store.set('definicoes','conjunta',{pct: v.pct ?? 30, salarios}); toast('Guardado'); }}); break; }
+      sheet({title:'Conta conjunta', fields:[{id:'inicial',label:'Saldo que já está na conta (€)',type:'number',value:cfg.inicial,hint:'O valor com que começam. As entradas e despesas registadas a seguir somam-se a este.'},{id:'pct',label:'Percentagem do salário de cada um (%)',type:'number',value:cfg.pct ?? 30}, ...ids.map((m,i) => ({id:'s'+i, label:`Salário líquido de ${nameOf(m)} (€)`, type:'number', value:sal[m]}))],
+        onSave: async v => { const salarios = {}; ids.forEach((m,i) => { if (v['s'+i] != null) salarios[m] = Math.abs(v['s'+i]); }); await store.set('definicoes','conjunta',{pct: v.pct ?? 30, salarios, inicial: v.inicial ?? null}); toast('Guardado'); }}); break; }
     case 'newPot': potForm(); break;
     case 'editPot': potForm(byId('vaquinhas', id)); break;
     case 'potMove': potMoveForm(byId('vaquinhas', id), +b.dataset.dir); break;
