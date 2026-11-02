@@ -522,7 +522,8 @@ function movForm(r={}, preset={}){
   const joint = (r.conta || preset.conta) === 'conjunta';
   const extra = r.fatura ? `<div class="row between card" style="padding:10px 12px;background:var(--surface-2);box-shadow:none"><a href="${blobUrl(r.fatura)}" target="_blank" rel="noopener" data-fatura="${esc(r.fatura)}">${ic('clip').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px"')} Ver fatura</a><label class="checkline small"><input type="checkbox" id="f-semfatura"> Remover</label></div>` : '';
   const form = sheet({ title: r.id ? 'Editar movimento' : (joint ? 'Movimento da conta conjunta' : 'Novo movimento'), fields:[
-    {id:'tipo',label:'Tipo',type:'select',options:[{v:'despesa',t:'Despesa'},{v:'receita',t:joint?'Entrada (transferência para a conta)':'Entrada'}],value:r.tipo||preset.tipo||'despesa'},
+    {id:'tipo',label:'Tipo',type:'select',options:[{v:'despesa',t:'Despesa'},{v:'receita',t:joint?'Entrada (transferência para a conta)':'Entrada'}, ...(r.id ? [] : [{v:'vaquinha',t:'🐷 Pôr numa vaquinha'}])],value:r.tipo||preset.tipo||'despesa'},
+    ...(r.id ? [] : [{id:'pot',label:'Vaquinha',type:'select',options:[...S.data.vaquinhas.map(v => ({v:v.id, t:`${v.emoji||'🐷'} ${v.nome}`})), ...(S.data.vaquinhas.some(v => /poupan/i.test(v.nome||'')) ? [] : [{v:'__new',t:'＋ Criar vaquinha "Poupanças"'}])]}]),
     {id:'titulo',label:'Descrição',value:r.titulo ?? preset.titulo,required:true,ph:'Supermercado'},
     {id:'valor',label:'Valor (€)',type:'number',value:r.valor ?? preset.valor,required:true},
     {id:'data',label:'Data',type:'date',value:r.data||iso(today()),required:true},
@@ -532,6 +533,16 @@ function movForm(r={}, preset={}){
     {id:'partilhado',label:'Despesa a meias (só para conta pessoal)',type:'checkbox',value:r.id ? r.partilhado : !joint},
     {id:'fatura',label:r.fatura?'Trocar fatura':'Fatura (PDF ou foto, opcional)',type:'file',accept:'application/pdf,image/*'}
   ], extra, onSave: async v => {
+    if (v.tipo === 'vaquinha') {
+      let pid = v.pot;
+      if (!pid || pid === '__new') pid = (await store.add('vaquinhas', {nome:'Poupanças', emoji:'💰', objetivo:null, prazo:null, movs:[], criado:Date.now()}));
+      const pot = byId('vaquinhas', pid);
+      if (!pot) { toast('Não encontrei a vaquinha'); return; }
+      const origem = v.pago === 'cartao' || v.conta === 'conjunta' ? 'conjunta' : 'pessoal';
+      const m = {id:rid(), valor:Math.abs(v.valor||0), quem:v.pago === 'cartao' ? S.uid : v.pago, origem, data:v.data, nota:v.titulo};
+      await store.update('vaquinhas', pid, {movs:[...(pot.movs||[]), m]});
+      toast(`Guardado na vaquinha ${pot.nome} 🐷`); return;
+    }
     if (v.pago === 'cartao') { v.conta = 'conjunta'; if (v.tipo === 'receita') v.pago = S.uid; }
     const doc = {tipo:v.tipo, titulo:v.titulo, valor:Math.abs(v.valor||0), data:v.data, conta:v.conta, cat:v.cat, pago:v.pago, partilhado:v.conta==='conjunta'?false:v.partilhado, acertado:!!r.acertado, criado:r.criado||Date.now(), fatura:r.fatura||null, faturaTipo:r.faturaTipo||null};
     const old = r.fatura;
@@ -542,6 +553,13 @@ function movForm(r={}, preset={}){
     if (old && old !== doc.fatura) deleteFile(old);
     view.budMonth = v.data.slice(0,7); toast('Guardado');
   }, onDelete: r.id ? async () => { await store.remove('orcamento', r.id); if (r.fatura) deleteFile(r.fatura); } : null });
+  const tipoEl = form.querySelector('#f-tipo'), potEl = form.querySelector('#f-pot');
+  if (potEl) {
+    const hide = (id, h) => { const el = form.querySelector('#f-'+id); if (el) (el.closest('.field, .checkline')).hidden = h; };
+    const sync = () => { const isPot = tipoEl.value === 'vaquinha'; hide('pot', !isPot); hide('cat', isPot); hide('partilhado', isPot); hide('fatura', isPot);
+      const lbl = form.querySelector('#f-conta').closest('.field').querySelector('span'); lbl.textContent = isPot ? 'De onde sai o dinheiro' : 'Conta'; };
+    tipoEl.addEventListener('change', sync); sync();
+  }
   /* the signed link may not be ready on first open: refresh it in place */
   const a = form.querySelector('[data-fatura]');
   if (a && a.getAttribute('href') === PIXEL) S.sb.storage.from('ficheiros').createSignedUrl(a.dataset.fatura, 3600).then(({data}) => { if (data) a.href = data.signedUrl; });
