@@ -875,7 +875,7 @@ function pushCard(){
 /* ---------- auth & boot ---------- */
 const LOGO = `<svg viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="230" fill="#E3EBE4"/><g transform="translate(512 512) scale(1.4) translate(-512 -560)"><path d="M512 470c-34-56-128-32-102 36 16 40 102 88 102 88s86-48 102-88c26-68-68-92-102-36z" fill="#F2553C"/><path d="M300 600c40 120 384 120 424 0" fill="none" stroke="#1F2A24" stroke-width="30" stroke-linecap="round"/></g></svg>`;
 function authHero(title, hand){
-  const mags = [['listas',-8,'6%','8%'],['calendario',7,'74%','4%'],['mensagens',-5,'80%','56%'],['galeria',9,'2%','60%'],['datas',-12,'40%','-6%']]
+  const mags = [['listas',-8,'6%','8%'],['calendario',7,'74%','8%'],['mensagens',-5,'80%','56%'],['galeria',9,'2%','60%'],['datas',-12,'40%','2%']]
     .map(([k,r,x,y]) => `<span class="mag" style="--c:var(--c-${k});--t:var(--t-${k});left:${x};top:${y};transform:rotate(${r}deg)">${ic(k)}</span>`).join('');
   return `<div class="auth-hero">${mags}<div class="auth-logo">${LOGO}</div></div>
     <div class="auth-title"><h1>${title}</h1><p class="hand">${hand}</p></div>`;
