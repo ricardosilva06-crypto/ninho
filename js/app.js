@@ -890,6 +890,8 @@ async function boot(){
   await onSession(data.session);
   S.sb.auth.onAuthStateChange((ev, session) => { if (ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') onSession(session); });
 }
+['gesturestart','gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), {passive:false}));
+let lastTouch = 0; document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,textarea,select')) e.preventDefault(); lastTouch = n; }, {passive:false});
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 boot();
 })();

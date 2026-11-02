@@ -258,3 +258,9 @@ html,body{overflow-x:hidden}
 
 .tile .sub{opacity:1;display:inline-block;align-self:flex-start;margin-top:8px;padding:5px 10px;border-radius:10px;background:rgba(255,255,255,.3);font-size:14px;font-weight:800;line-height:1.25;max-width:88%;box-shadow:0 1px 0 rgba(0,0,0,.06)}
 .tile .peek span{font-size:15px;font-weight:700}
+
+/* lock the layout: no pinch/double-tap zoom, no sideways drift, no zoom on input focus */
+html{touch-action:pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{overflow-x:clip;overscroll-behavior-x:none;max-width:100%}
+.wrap{overflow-x:clip}
+input.in,select.in,textarea.in,#newitem,#chatin{font-size:16px}
