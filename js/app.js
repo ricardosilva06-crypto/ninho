@@ -312,7 +312,7 @@ function vHome(){
   </section>` : ''}
   <section class="tiles" aria-label="Módulos">
     ${tile('listas','Listas',0, openItems.length ? `<div class="peek">${openItems.map(i => `<span><i></i>${esc(i.texto)}</span>`).join('')}</div>` : '', 'wide')}
-    ${MODS.filter(([k]) => k !== 'listas').map(([k,n],i) => k === 'orcamento' && hasJoint() ? tile(k, n, i+1, `<div class="tile-big num">${eur(jointBalance())}</div>`) : tile(k, n, i+1)).join('')}
+    ${MODS.filter(([k]) => k !== 'listas').map(([k,n],i) => k === 'orcamento' && hasJoint() ? tile(k, n, i+1, `<div class="tile-big num${eur(jointBalance()).length > 10 ? ' sm' : ''}">${eur(jointBalance())}</div>`) : tile(k, n, i+1)).join('')}
   </section>`;
 }
 
