@@ -19,6 +19,7 @@ const P = {
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
   send:'<path d="M4 12l16-8-6 16-2.5-6.5z"/>', chev:'<path d="M9 5l7 7-7 7"/>', copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
+  bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   clip:'<path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/>',
   cart:'<path d="M3 4h2.5l2.2 11h10.6L20.5 8H6.5"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'
 };
@@ -261,7 +262,7 @@ function vHome(){
   const me = nameOf(S.uid);
   const openItems = S.data.listas.flatMap(l => (l.itens||[]).filter(i => !i.feito)).slice(0,3);
   const tile = (k, n, i, extra='', cls='') => `<a class="tile ${cls}" href="#${k}" style="--c:var(--c-${k});--t:var(--t-${k});--tilt:${TILT[i % TILT.length]}deg;--i:${i};text-decoration:none"><h3>${n}</h3><div class="sub">${esc(subtitle(k))}</div>${extra}<span class="big-ico">${ic(k)}</span></a>`;
-  return `<header class="top home-top"><div><div class="date">${DIAS[t.getDay()]}, ${t.getDate()} de ${MESES[t.getMonth()]}</div><h1 class="hello">${greeting()},<br><em>${esc(me)}</em></h1></div><a href="#nos" class="avatars" aria-label="Nós dois">${avs}</a></header>${statusBar()}
+  return `<header class="top home-top"><div><div class="date">${DIAS[t.getDay()]}, ${t.getDate()} de ${MESES[t.getMonth()]}</div><h1 class="hello">${greeting()},<br><em>${esc(me)}</em></h1></div><div class="row" style="gap:8px;flex:none"><a href="#novidades" class="bell" aria-label="Novidades">${ic('bell')}${unseen()?`<b>${unseen()}</b>`:''}</a><a href="#nos" class="avatars" aria-label="Nós dois">${avs}</a></div></header>${statusBar()}
   <section class="door" aria-label="O nosso cantinho">
     <a class="polaroid" href="#galeria"><span class="pic">${photo ? `<img src="${blobUrl(photo.foto)}" alt="${esc(photo.legenda||'A nossa foto')}">` : NEST_SVG}</span><span class="cap">${photo && photo.legenda ? esc(photo.legenda) : photo ? 'nós ♥' : 'põe aqui a vossa foto'}</span></a>
     <div class="door-side">
@@ -631,6 +632,7 @@ function vNos(){
   return header('Nós dois','nos') + `<div class="stack">${ids.map(id => { const m = members().find(x => x.id === id) || {}; return `<div class="card row">${avatar(id,52)}<div class="grow"><h3>${esc(nameOf(id))}${id===S.uid?' <span class="pill">tu</span>':''}</h3><div class="small muted">${m.aniversario?'Aniversário: '+fmtDate(m.aniversario):'Sem aniversário definido'}</div></div>${id===S.uid?`<button class="iconbtn" data-act="editMe" aria-label="Editar o meu perfil">${ic('edit')}</button>`:''}</div>`; }).join('')}</div>
   <div class="card stack" style="margin-top:14px"><div class="row between"><div class="label">O nosso ninho</div><button class="btn sm" data-act="couple">Editar</button></div><p><b>${esc(c.nome||'Ninho')}</b></p><p class="muted small">${c.desde?'Juntos desde '+fmtDate(c.desde):'Ainda sem data de início.'}</p></div>
   ${code ? `<div class="card stack" style="margin-top:14px"><div class="label">Código de convite</div><div class="row between"><b class="num" style="font-family:var(--display);font-size:28px;letter-spacing:.12em">${esc(code)}</b><button class="btn sm" data-act="copy" data-v="${esc(code)}">Copiar</button></div><button class="btn primary" data-act="invite">Enviar convite</button><p class="small muted">A tua namorada cria conta na app e escolhe "Entrar num ninho" com este código.</p></div>` : ''}
+  ${pushCard()}
   <div class="card stack" style="margin-top:14px"><div class="label">Conta</div><p class="small">${esc(S.email||'')}</p><button class="btn" data-act="logout" style="justify-self:start">Terminar sessão</button></div>`;
 }
 
@@ -660,7 +662,7 @@ function contactForm(c={}){
 }
 
 /* ---------- router & render ---------- */
-const VIEWS = {inicio:vHome, listas:vListas, calendario:vCalendario, orcamento:vOrcamento, documentos:vDocumentos, datas:vDatas, refeicoes:vRefeicoes, horario:vHorario, receitas:vReceitas, mapa:vMapa, mensagens:vMensagens, nos:vNos, galeria:vGaleria, contactos:vContactos};
+const VIEWS = {inicio:vHome, listas:vListas, calendario:vCalendario, orcamento:vOrcamento, documentos:vDocumentos, datas:vDatas, refeicoes:vRefeicoes, horario:vHorario, receitas:vReceitas, mapa:vMapa, mensagens:vMensagens, nos:vNos, galeria:vGaleria, contactos:vContactos, novidades:vNovidades};
 const route = () => { const h = location.hash.slice(1); return VIEWS[h] ? h : 'inicio'; };
 let lastRoute = null;
 function render(){
@@ -700,7 +702,7 @@ const byId = (c, id) => S.data[c].find(x => x.id === id);
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, id = b.dataset.id;
-  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout','invite','budTab','potHistory'].includes(a);
+  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout','invite','pushOn','pushOff','budTab','potHistory'].includes(a);
   if (needW && !S.writable) { toast('Estás em modo de leitura.'); return; }
   switch(a){
     case 'couple': { const c = couple(); sheet({title:'O nosso ninho', fields:[{id:'nome',label:'Nome da app',value:c.nome||'Ninho'},{id:'desde',label:'Juntos desde',type:'date',value:c.desde}], onSave: async v => { await store.set('definicoes','casal',v); toast('Guardado'); }}); break; }
@@ -772,6 +774,8 @@ document.addEventListener('click', async (e) => {
       if (navigator.share) { try { await navigator.share({title:'Ninho', text}); } catch(err) {} }
       else { try { await navigator.clipboard.writeText(text); toast('Convite copiado. Cola-o no WhatsApp.'); } catch(err) { toast(text); } }
       break; }
+    case 'pushOn': enablePush(); break;
+    case 'pushOff': disablePush(); break;
     case 'copy': try { await navigator.clipboard.writeText(b.dataset.v); toast('Copiado'); } catch(err) { toast(b.dataset.v); } break;
   }
 });
@@ -786,6 +790,87 @@ document.addEventListener('submit', async (e) => {
     try { await store.add('mensagens', {texto:t, de:S.uid, ts:Date.now()}); } catch(err) { inp.value = t; }
   }
 });
+
+
+/* ---------- activity & notifications ---------- */
+S.activity = [];
+const A_ROUTE = { lugares:'mapa', vaquinhas:'orcamento', eventos:'calendario' };
+const A_NOUN = { listas:'a lista', eventos:'o evento', orcamento:'o movimento', documentos:'o documento', datas:'a data especial', horario:'o horário', receitas:'a receita', lugares:'o lugar', contactos:'o contacto', vaquinhas:'a vaquinha', galeria:'uma foto' };
+const A_VERB = { add:'adicionou', edit:'alterou', delete:'apagou' };
+const A_ICON = { listas:'listas', eventos:'calendario', orcamento:'orcamento', documentos:'documentos', datas:'datas', refeicoes:'refeicoes', horario:'horario', receitas:'receitas', lugares:'mapa', mensagens:'mensagens', galeria:'galeria', contactos:'contactos', vaquinhas:'orcamento' };
+function describeActivity(a){
+  const who = a.actor === S.uid ? 'Tu' : nameOf(a.actor);
+  const q = (s) => s ? ` «${s}»` : '';
+  if (a.col === 'mensagens') return `${who}: ${a.title || 'nova mensagem'}`;
+  if (a.action === 'list_add') { const [item, list] = (a.title||'').split('|'); return `${who} adicionou «${item}» à lista ${list}`; }
+  if (a.action === 'list_remove') return `${who} removeu itens de uma lista`;
+  if (a.action === 'list_check') return `${who} riscou itens de uma lista`;
+  if (a.col === 'galeria') return a.action === 'add' ? `${who} adicionou uma foto${q(a.title)}` : `${who} ${A_VERB[a.action]} uma foto`;
+  if (a.col === 'refeicoes') return `${who} alterou o plano de refeições`;
+  if (a.col === 'vaquinhas' && a.action === 'edit') return `${who} mexeu na vaquinha${q(a.title)}`;
+  return `${who} ${A_VERB[a.action] || 'alterou'} ${A_NOUN[a.col] || 'um item'}${q(a.title)}`;
+}
+function timeAgo(ts){
+  const s = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (s < 60) return 'agora'; if (s < 3600) return `há ${Math.floor(s/60)} min`; if (s < 86400) return `há ${Math.floor(s/3600)} h`;
+  return fmtDate(iso(new Date(ts)));
+}
+let seenActivity = 0;
+try { seenActivity = +localStorage.getItem('ninho-seen') || 0; } catch(e) {}
+const unseen = () => S.activity.filter(a => a.actor !== S.uid && new Date(a.created_at).getTime() > seenActivity).length;
+async function loadActivity(){
+  const { data } = await S.sb.from('activity').select('*').eq('household_id', S.hid).order('created_at', {ascending:false}).limit(60);
+  if (data) { S.activity = data; scheduleRender(); }
+}
+function onActivity(p){
+  const a = p.new; if (!a || a.household_id !== S.hid) return;
+  S.activity = [a, ...S.activity.filter(x => x.id !== a.id)].slice(0, 60);
+  if (a.actor !== S.uid) toast(describeActivity(a));
+  scheduleRender();
+}
+function vNovidades(){
+  const L = S.activity;
+  try { seenActivity = Date.now(); localStorage.setItem('ninho-seen', String(seenActivity)); } catch(e) {}
+  return header('Novidades') + (L.length ? `<div class="card">${L.map(a => `<a class="list-item" href="#${A_ROUTE[a.col] || a.col}" style="text-decoration:none;color:inherit">${avatar(a.actor, 34)}<div class="grow"><div style="font-weight:600">${esc(describeActivity(a))}</div><div class="small muted">${timeAgo(a.created_at)}</div></div><span class="hdr-ico" style="--c:var(--c-${A_ICON[a.col]||'listas'});--t:var(--t-${A_ICON[a.col]||'listas'});width:30px;height:30px;border-radius:10px">${ic(A_ICON[a.col]||'listas').replace('<svg','<svg style="width:16px;height:16px"')}</span></a>`).join('')}</div>`
+    : empty('mensagens','Aqui aparece tudo o que vocês os dois adicionam, alteram ou apagam.'));
+}
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function b64ToBytes(b64){ const p = '='.repeat((4 - b64.length % 4) % 4); const s = atob((b64 + p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(s, c => c.charCodeAt(0)); }
+S.pushOn = false;
+async function checkPush(){
+  if (!pushSupported() || Notification.permission !== 'granted') { S.pushOn = false; return; }
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); S.pushOn = !!sub; if (sub) savePushSub(sub); } catch(e) {}
+}
+async function savePushSub(sub){
+  const j = sub.toJSON();
+  await S.sb.from('push_subscriptions').upsert({ endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, user_id:S.uid, household_id:S.hid }, { onConflict:'endpoint' });
+}
+async function enablePush(){
+  if (isIOS() && !isStandalone()) { toast('No iPhone, primeiro adiciona o Ninho ao ecrã principal e abre-o pelo ícone.'); return; }
+  if (!pushSupported()) { toast('Este navegador não suporta notificações.'); return; }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast('Notificações bloqueadas. Ativa-as nas Definições do telemóvel → Ninho.'); render(); return; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64ToBytes((window.NINHO_CONFIG||{}).vapidPublicKey) });
+    await savePushSub(sub); S.pushOn = true; toast('Notificações ativadas 🔔'); render();
+  } catch(e) { console.warn(e); toast('Não foi possível ativar as notificações.'); }
+}
+async function disablePush(){
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { await S.sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch(e) {}
+  S.pushOn = false; toast('Notificações desligadas neste telemóvel'); render();
+}
+function pushCard(){
+  let state, btn = '';
+  if (!pushSupported() && !(isIOS() && !isStandalone())) state = 'Este navegador não suporta notificações.';
+  else if (isIOS() && !isStandalone()) state = 'No iPhone, as notificações só funcionam com o Ninho no ecrã principal: Safari → Partilhar → Adicionar ao ecrã principal, e depois abre-o pelo ícone.';
+  else if (Notification.permission === 'denied') state = 'Estão bloqueadas. Ativa-as em Definições → Notificações → Ninho.';
+  else if (S.pushOn) { state = 'Ativas neste telemóvel. Recebes um aviso sempre que a tua cara-metade adiciona, altera ou apaga alguma coisa.'; btn = `<button class="btn" data-act="pushOff" style="justify-self:start">Desligar</button>`; }
+  else { state = 'Recebe um aviso sempre que a tua cara-metade adiciona, altera ou apaga alguma coisa, mesmo com a app fechada.'; btn = `<button class="btn primary" data-act="pushOn" style="justify-self:start">Ativar notificações 🔔</button>`; }
+  return `<div class="card stack" style="margin-top:14px"><div class="label">Notificações</div><p class="small">${state}</p>${btn}</div>`;
+}
 
 /* ---------- auth & boot ---------- */
 function authScreen(mode='entrar', msg=''){
@@ -856,12 +941,14 @@ async function start(household){
   const slow = setTimeout(() => { if (S.mode === 'loading') setStatus('slow'); }, 10000);
   try { await loadAll(); S.mode = 'live'; } catch(e) { S.mode = navigator.onLine ? 'slow' : 'offline'; }
   clearTimeout(slow);
+  loadActivity().catch(() => {}); checkPush().then(() => scheduleRender());
   if (!members().some(m => m.id === S.uid)) store.set('membros', S.uid, {email:S.email, entrou:Date.now()}).catch(() => {});
   if (channel) S.sb.removeChannel(channel);
   channel = S.sb.channel('items-' + S.hid)
     .on('postgres_changes', {event:'INSERT', schema:'public', table:'items', filter:'household_id=eq.' + S.hid}, onChange)
     .on('postgres_changes', {event:'UPDATE', schema:'public', table:'items', filter:'household_id=eq.' + S.hid}, onChange)
     .on('postgres_changes', {event:'DELETE', schema:'public', table:'items'}, onChange)
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'activity', filter:'household_id=eq.' + S.hid}, onActivity)
     .subscribe((status) => { if (status === 'SUBSCRIBED' && S.mode !== 'live') { loadAll().then(() => setStatus('live')).catch(() => {}); } });
   render();
 }
