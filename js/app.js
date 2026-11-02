@@ -204,12 +204,19 @@ function subtitle(k){
   const d = S.data, t = today();
   switch(k){
     case 'listas': { const open = d.listas.reduce((a,l) => a + (l.itens||[]).filter(i => !i.feito).length, 0); return d.listas.length ? `${plural(d.listas.length,'lista','listas')} · ${open} por fazer` : 'Compras, tarefas, ideias'; }
-    case 'calendario': { const m = iso(t).slice(0,7); const n = d.eventos.filter(e => (e.data||'').startsWith(m)).length; return n ? `${plural(n,'evento','eventos')} este mês` : 'Sem eventos este mês'; }
+    case 'calendario': { const nx = d.eventos.filter(e => e.data >= iso(t)).sort((a,b) => (a.data+(a.hora||'')).localeCompare(b.data+(b.hora||'')))[0];
+      if (!nx) return 'Nada marcado';
+      const dd = diffDays(t, parse(nx.data)); const when = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd < 7 ? DIAS[parse(nx.data).getDay()] : fmtDate(nx.data);
+      return `${nx.titulo} · ${when}${nx.hora ? ' ' + nx.hora : ''}`; }
     case 'orcamento': { const m = iso(t).slice(0,7); const g = d.orcamento.filter(e => e.tipo !== 'receita' && (e.data||'').startsWith(m)).reduce((a,e) => a + (+e.valor||0), 0); return g ? `${eur(g)} gastos este mês` : 'Despesas e contas a dois'; }
     case 'documentos': return d.documentos.length ? plural(d.documentos.length,'documento','documentos') : 'Guarda o que é importante';
     case 'datas': { const nx = nextSpecial(); return nx ? `${nx.title}: ${nx.days === 0 ? 'hoje!' : 'faltam '+plural(nx.days,'dia','dias')}` : 'Contagem para o que importa'; }
     case 'refeicoes': { const r = d.refeicoes.find(x => x.id === iso(t)); return r && (r.jantar||r.almoco) ? `Hoje: ${r.jantar||r.almoco}` : 'Planeia a semana'; }
-    case 'horario': return d.horario.length ? plural(d.horario.length,'bloco','blocos') + ' na semana' : 'Partilhem as vossas rotinas';
+    case 'horario': { if (!d.horario.length) return 'Partilhem as vossas rotinas';
+      const wd = (t.getDay()+6)%7; const now = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+      const td = d.horario.filter(h => +h.dia === wd).sort((a,b) => (a.inicio||'').localeCompare(b.inicio||''));
+      const cur = td.find(h => (h.inicio||'') <= now && now < (h.fim||'99')); if (cur) return `Agora: ${nameOf(cur.quem)} · ${cur.titulo} até ${cur.fim}`;
+      const nx = td.find(h => (h.inicio||'') > now); return nx ? `${nameOf(nx.quem)} · ${nx.titulo} às ${nx.inicio}` : 'Hoje já estão livres ♥'; }
     case 'receitas': return d.receitas.length ? plural(d.receitas.length,'receita','receitas') : 'Sem receitas ainda';
     case 'mapa': return d.lugares.length ? plural(d.lugares.length,'lugar','lugares') : 'Sítios favoritos e por visitar';
     case 'mensagens': { const m = S.msgs[0]; return m ? `${nameOf(m.de)}: ${m.texto}`.slice(0,40) : 'Recados entre os dois'; }
