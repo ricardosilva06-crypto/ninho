@@ -332,3 +332,32 @@ input.in[type=date]::-webkit-date-and-time-value,input.in[type=time]::-webkit-da
 .tile .tile-big{order:1;font-family:var(--display);font-size:clamp(20px,7vw,28px);font-weight:800;line-height:1;letter-spacing:-.01em;position:relative;z-index:1;margin-top:-2px;white-space:nowrap}
 .tile h3{order:0}.tile .sub{order:2}.tile .peek{order:3}
 .tile .tile-big.sm{font-size:clamp(17px,5.4vw,22px)}
+
+/* ---------- phone lying down (landscape) ---------- */
+@media (orientation:landscape) and (max-height:560px){
+  .wrap{max-width:1100px;padding-bottom:96px}
+  .top{position:static;padding-block:4px 10px}
+  .home-top{padding-top:6px}
+  .hello{font-size:26px}
+  .home-top .date{font-size:19px}
+  #app[data-route="inicio"]{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);column-gap:26px;align-items:start}
+  #app[data-route="inicio"] > .top{grid-column:1 / -1}
+  #app[data-route="inicio"] > .status,#app[data-route="inicio"] > .door,#app[data-route="inicio"] > .sticky,#app[data-route="inicio"] > .agenda{grid-column:1}
+  #app[data-route="inicio"] > .tiles{grid-column:2;grid-row:2 / span 6;margin-top:6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .tile{min-height:118px}
+  .door{margin-top:0}
+  .nav{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);padding:4px}
+  .nav a{height:42px}
+  .fab{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:52px;height:52px}
+  .cal button{aspect-ratio:auto;height:40px}
+  #app[data-route="calendario"]{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);column-gap:22px;align-items:start}
+  #app[data-route="calendario"] > .top,#app[data-route="calendario"] > .status{grid-column:1 / -1}
+  #app[data-route="calendario"] > .card{grid-column:1;grid-row:2 / span 3}
+  #app[data-route="calendario"] > .row,#app[data-route="calendario"] > .stack{grid-column:2}
+  #app[data-route="calendario"] > .row{margin-top:4px!important}
+  #app[data-route="calendario"] .cal button{height:34px}
+  .sheet{max-height:94%;border-radius:22px 22px 0 0}
+  .auth{max-width:760px;display:grid;grid-template-columns:1fr 1fr;column-gap:28px;align-items:center}
+  .auth > *{grid-column:2}
+  .auth > .auth-hero{grid-column:1;grid-row:1 / span 20;margin-top:0}
+}

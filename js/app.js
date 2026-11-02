@@ -769,6 +769,7 @@ function render(){
   const active = document.activeElement && document.activeElement.id;
   const keep = active === 'newitem' || active === 'chatin' ? {id:active, v:document.activeElement.value} : null;
   $('#app').innerHTML = VIEWS[r]();
+  $('#app').dataset.route = r;
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.value = keep.v; el.focus(); } }
   $('#nav').innerHTML = [['inicio','home','Início'],['calendario','calendario','Calendário'],['listas','listas','Listas'],['mensagens','mensagens','Mensagens']]
     .map(([k,i,t]) => `<a href="#${k}" class="${r===k?'on':''}" aria-label="${t}">${ic(i)}</a>`).join('');
