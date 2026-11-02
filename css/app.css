@@ -268,3 +268,19 @@ input.in,select.in,textarea.in,#newitem,#chatin{font-size:16px}
 .bell{position:relative;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .bell svg{width:20px;height:20px}
 .bell b{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;display:grid;place-items:center;font-family:var(--body)}
+
+/* auth screens */
+.auth{max-width:420px;margin:0 auto;padding-top:2vh;gap:16px}
+.auth-hero{position:relative;height:210px;display:grid;place-items:center}
+.auth-logo{width:118px;height:118px;border-radius:30px;box-shadow:0 18px 30px -16px rgba(0,0,0,.45);transform:rotate(-4deg);position:relative;z-index:1;animation:magnet .6s cubic-bezier(.3,1.6,.5,1) both}
+.auth-logo svg{width:100%;height:100%;display:block}
+.mag{position:absolute;width:62px;height:62px;border-radius:18px;background:var(--c);color:var(--t);display:grid;place-items:center;box-shadow:0 10px 18px -12px rgba(0,0,0,.5)}
+.mag svg{width:28px;height:28px}
+.mag::after{content:"";position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.55)}
+.auth-title{text-align:center;display:grid;gap:0}
+.auth-title h1{font-size:44px;line-height:1}
+.auth-title .hand{font-size:26px;color:var(--accent)}
+.auth-card{background:var(--surface);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
+.auth-card h3{font-size:20px}
+.auth .btn.primary{padding:14px 16px;font-size:16px}
+.nav:empty{display:none}

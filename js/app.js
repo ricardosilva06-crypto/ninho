@@ -873,18 +873,26 @@ function pushCard(){
 }
 
 /* ---------- auth & boot ---------- */
+const LOGO = `<svg viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="230" fill="#E3EBE4"/><g transform="translate(512 512) scale(1.4) translate(-512 -560)"><path d="M512 470c-34-56-128-32-102 36 16 40 102 88 102 88s86-48 102-88c26-68-68-92-102-36z" fill="#F2553C"/><path d="M300 600c40 120 384 120 424 0" fill="none" stroke="#1F2A24" stroke-width="30" stroke-linecap="round"/></g></svg>`;
+function authHero(title, hand){
+  const mags = [['listas',-8,'6%','8%'],['calendario',7,'74%','4%'],['mensagens',-5,'80%','56%'],['galeria',9,'2%','60%'],['datas',-12,'40%','-6%']]
+    .map(([k,r,x,y]) => `<span class="mag" style="--c:var(--c-${k});--t:var(--t-${k});left:${x};top:${y};transform:rotate(${r}deg)">${ic(k)}</span>`).join('');
+  return `<div class="auth-hero">${mags}<div class="auth-logo">${LOGO}</div></div>
+    <div class="auth-title"><h1>${title}</h1><p class="hand">${hand}</p></div>`;
+}
 function authScreen(mode='entrar', msg=''){
   $('#nav').innerHTML = '';
   $('#app').innerHTML = `<div class="auth">
-    <div class="auth-mark">${ic('datas')}</div>
-    <h1>Ninho</h1><p class="muted">O vosso cantinho partilhado.</p>
-    <div class="seg" style="margin-top:8px"><button class="${mode==='entrar'?'on':''}" data-auth="entrar">Entrar</button><button class="${mode==='criar'?'on':''}" data-auth="criar">Criar conta</button></div>
+    ${authHero('Ninho','o vosso cantinho partilhado ♥')}
+    <div class="auth-card stack">
+    <div class="seg"><button class="${mode==='entrar'?'on':''}" data-auth="entrar">Entrar</button><button class="${mode==='criar'?'on':''}" data-auth="criar">Criar conta</button></div>
     <form id="authform" class="stack">
       <label class="field"><span>Email</span><input class="in" id="a-email" type="email" autocomplete="email" required></label>
       <label class="field"><span>Palavra-passe</span><input class="in" id="a-pass" type="password" minlength="6" autocomplete="${mode==='criar'?'new-password':'current-password'}" required></label>
       <button class="btn primary">${mode==='criar'?'Criar conta':'Entrar'}</button>
-      ${msg?`<p class="small" style="color:var(--muted)">${esc(msg)}</p>`:''}
-    </form></div>`;
+    </form></div>
+    ${msg?`<div class="sticky" style="margin-top:4px"><span class="hand" style="font-size:20px">${esc(msg)}</span></div>`:''}
+    </div>`;
   document.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => authScreen(b.dataset.auth));
   $('#authform').onsubmit = async (e) => {
     e.preventDefault();
@@ -903,12 +911,11 @@ function authScreen(mode='entrar', msg=''){
 function householdScreen(msg=''){
   $('#nav').innerHTML = '';
   $('#app').innerHTML = `<div class="auth">
-    <div class="auth-mark">${ic('nos')}</div>
-    <h1>Bem-vindo ao Ninho</h1><p class="muted">Cria o vosso ninho, ou entra no da tua cara-metade com o código de convite.</p>
-    <div class="card stack"><h3>Criar um ninho novo</h3><button class="btn primary" id="hh-new">Criar o nosso ninho</button></div>
-    <form class="card stack" id="hh-join"><h3>Entrar num ninho</h3><input class="in" id="hh-code" placeholder="Código (ex.: 7F3A9C)" autocomplete="off" required style="text-transform:uppercase"><button class="btn">Entrar</button></form>
-    ${msg?`<p class="small" style="color:var(--bad)">${esc(msg)}</p>`:''}
-    <button class="btn danger" data-act="logout">Terminar sessão</button></div>`;
+    ${authHero('Bem-vindo','falta só um passo…')}
+    <div class="auth-card stack"><h3>Criar um ninho novo</h3><p class="small muted">Para quem chega primeiro. Depois convidas a tua cara-metade.</p><button class="btn primary" id="hh-new">Criar o nosso ninho</button></div>
+    <form class="auth-card stack" id="hh-join"><h3>Entrar num ninho</h3><p class="small muted">Escreve o código de convite que recebeste.</p><input class="in" id="hh-code" placeholder="Código (ex.: 7F3A9C)" autocomplete="off" required style="text-transform:uppercase"><button class="btn">Entrar</button></form>
+    ${msg?`<div class="sticky"><span class="hand" style="font-size:20px">${esc(msg)}</span></div>`:''}
+    <button class="btn danger" data-act="logout" style="justify-self:center">Terminar sessão</button></div>`;
   $('#hh-new').onclick = async () => { const { data, error } = await S.sb.rpc('create_household', {p_name:'Ninho'}); if (error) return householdScreen('Não foi possível criar. Tenta outra vez.'); start(data); };
   $('#hh-join').onsubmit = async (e) => { e.preventDefault(); const { data, error } = await S.sb.rpc('join_household', {p_code: $('#hh-code').value.trim().toUpperCase()}); if (error || !data) return householdScreen('Código não encontrado. Confirma com a tua cara-metade.'); start(data); };
 }
