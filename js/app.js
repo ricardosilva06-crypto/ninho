@@ -101,6 +101,12 @@ function nameOf(id){
   return id === S.uid ? 'Eu' : 'Alguém';
 }
 const PALETTE = ['#D9485F','#3D63C9','#1E8A5A','#7B5CD6','#E38A1C','#14A08C'];
+const TAGS = [['coral','#FF7A61'],['sol','#F2B630'],['folha','#3FB37F'],['mar','#4C7DFF'],['lilas','#8B6CF0'],['rosa','#EC5FA0'],['agua','#19A7B0'],['pedra','#8A948E']];
+const swatch = (k) => (TAGS.find(t => t[0] === k) || TAGS[7])[1];
+const DEFAULT_TAGS = [{id:'saude',nome:'Saúde',cor:'folha'},{id:'trabalho',nome:'Trabalho',cor:'mar'},{id:'lazer',nome:'Lazer',cor:'sol'},{id:'familia',nome:'Família',cor:'rosa'}];
+const etiquetas = () => { const d = (S.data.definicoes || []).find(x => x.id === 'etiquetas'); return d && Array.isArray(d.lista) ? d.lista : DEFAULT_TAGS; };
+const tagOf = (k) => k ? etiquetas().find(t => t.id === k) : null;
+const tagColor = (k, fb) => { const t = tagOf(k); return t ? swatch(t.cor) : fb; };
 const colorOf = (id) => { let h = 0; for (const ch of String(id||'')) h = (h*31 + ch.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
 function avatar(id, size=36){
   const n = nameOf(id); const ini = n.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase();
@@ -123,6 +129,7 @@ function sheet({title, fields=[], save='Guardar', onSave, onDelete, extra=''}){
     </div></form></div>`;
   root.querySelector('.scrim').addEventListener('click', e => { if (e.target.dataset.close) closeSheet(); });
   const form = $('#sheetform');
+  wireTagPickers(form);
   const first = form.querySelector('input,textarea,select'); if (first && first.type !== 'file' && first.type !== 'date') setTimeout(() => first.focus(), 60);
   let confirmDel = false;
   if (onDelete) $('#sheet-del').onclick = async (e) => {
@@ -135,7 +142,7 @@ function sheet({title, fields=[], save='Guardar', onSave, onDelete, extra=''}){
     const v = {};
     fields.forEach(f => {
       const el = form.querySelector('#f-'+f.id); if (!el) return;
-      v[f.id] = f.type === 'checkbox' ? el.checked : f.type === 'file' ? el.files : f.type === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value.trim();
+      v[f.id] = f.type === 'swatch' ? ((el.querySelector('input:checked')||{}).value || '') : f.type === 'checkbox' ? el.checked : f.type === 'file' ? el.files : f.type === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value.trim();
     });
     const missing = fields.find(f => f.required && !v[f.id] && v[f.id] !== 0);
     if (missing) { toast(`Preenche: ${missing.label}`); return; }
@@ -144,8 +151,26 @@ function sheet({title, fields=[], save='Guardar', onSave, onDelete, extra=''}){
   };
   return form;
 }
+const tagChip = (name, t, on) => `<label class="tagchip" style="--sw:${swatch(t.cor)}"><input type="radio" name="${name}" value="${esc(t.id)}" ${on?'checked':''}><span><i></i>${esc(t.nome)}</span></label>`;
+function wireTagPickers(form){
+  form.querySelectorAll('[data-newtag]').forEach(btn => {
+    const box = btn.closest('.field').querySelector('.tagnew');
+    btn.onclick = () => { box.hidden = !box.hidden; if (!box.hidden) box.querySelector('input.in').focus(); };
+    box.querySelector('.btn').onclick = async () => {
+      const nome = box.querySelector('input.in').value.trim(); if (!nome) { toast('Dá um nome à etiqueta'); return; }
+      const cor = (box.querySelector('.swatches input:checked')||{}).value || 'pedra';
+      const t = {id: 't' + Date.now().toString(36), nome, cor};
+      await store.set('definicoes', 'etiquetas', {lista: [...etiquetas(), t]});
+      const name = btn.dataset.newtag;
+      btn.insertAdjacentHTML('beforebegin', tagChip(name, t, true));
+      box.hidden = true; box.querySelector('input.in').value = '';
+      toast('Etiqueta criada');
+    };
+  });
+}
 function fieldHTML(f){
   const id = 'f-'+f.id, val = f.value ?? '';
+  if (f.type === 'swatch') return `<div class="field"><span>${esc(f.label)}</span><div class="tagpick" id="${id}" role="radiogroup">${etiquetas().map(t => tagChip(id, t, val===t.id)).join('')}<label class="tagchip none"><input type="radio" name="${id}" value="" ${!tagOf(val)?'checked':''}><span>Sem etiqueta</span></label><button type="button" class="tagchip add" data-newtag="${id}">+ Nova</button></div><div class="tagnew" hidden><input class="in" placeholder="Nome (ex.: Ginásio)" maxlength="24"><div class="swatches">${TAGS.map(([k,c],i) => `<label style="--sw:${c}"><input type="radio" name="${id}-c" value="${k}" ${i===0?'checked':''} aria-label="${k}"><i></i></label>`).join('')}</div><button type="button" class="btn">Criar etiqueta</button></div></div>`;
   if (f.type === 'checkbox') return `<label class="checkline"><input type="checkbox" id="${id}" ${val?'checked':''}> ${esc(f.label)}</label>`;
   let input;
   if (f.type === 'textarea') input = `<textarea class="in" id="${id}" placeholder="${esc(f.ph||'')}">${esc(val)}</textarea>`;
@@ -268,10 +293,10 @@ function vHome(){
     <div class="door-side">
       ${together !== null && together >= 0
         ? `<div class="count"><span>juntos há</span><b>${together.toLocaleString('pt-PT')}</b><span>${together===1?'dia':'dias'} ♥</span></div>`
-        : `<button class="mini-btn" data-act="couple">Desde quando estão juntos? ✎</button>`}
-      ${nx ? `<a class="ticket" href="#datas"><b>${nx.days===0?'🎉':nx.days}</b><small>${nx.days===0?'é hoje':nx.days===1?'dia para':'dias para'}</small><span>${esc(nx.title)}</span></a>` : `<a class="mini-btn" href="#datas">+ Uma data especial</a>`}
-      ${!(members().find(x => x.id === S.uid) || {}).apelido ? `<button class="mini-btn" data-act="editMe">Como queres ser chamado? ✎</button>` : ''}
-      ${memberIds().length < 2 ? `<button class="mini-btn" data-act="invite">Convidar a minha cara-metade 💌</button>` : ''}
+        : `<button class="count ghost" data-act="couple"><span>juntos há</span><b>?</b><span>toca para pôr ✎</span></button>`}
+      ${nx ? `<a class="ticket" href="#datas"><b>${nx.days===0?'🎉':nx.days}</b><small>${nx.days===0?'é hoje':nx.days===1?'dia para':'dias para'}</small><span>${esc(nx.title)}</span></a>` : `<a class="ticket ghost" href="#datas"><b>+</b><small>data especial</small><span>aniversário, viagem…</span></a>`}
+      ${!(members().find(x => x.id === S.uid) || {}).apelido ? `<button class="note-chip" data-act="editMe">como te chamamos? ✎</button>` : ''}
+      ${memberIds().length < 2 ? `<button class="note-chip pink" data-act="invite">convidar a cara-metade 💌</button>` : ''}
     </div>
   </section>
   <a class="sticky" href="#mensagens">${msg ? `<span class="hand">${esc(msg.texto.length > 120 ? msg.texto.slice(0,120)+'…' : msg.texto)}</span><small>${msg.de===S.uid?'tu':esc(nameOf(msg.de))} · ${new Date(msg.ts||0).toDateString()===new Date().toDateString()?'hoje':fmtDate(iso(new Date(msg.ts||0)))}</small>` : `<span class="hand">Deixa aqui um recado para a tua cara-metade…</span><small>toca para escrever</small>`}</a>
@@ -314,7 +339,7 @@ function vCalendario(){
   for (let i=0;i<42;i++){
     const d = addDays(start,i), k = iso(d);
     if (i>=35 && d.getMonth() !== m.getMonth()) break;
-    const marks = (evBy[k]||[]).slice(0,3).map(() => '<i></i>').join('') + ((sdBy[k]||[]).length ? '<i class="sd"></i>' : '');
+    const marks = (evBy[k]||[]).slice(0,3).map(e => tagOf(e.cor) ? `<i style="background:${tagColor(e.cor)}"></i>` : '<i></i>').join('') + ((sdBy[k]||[]).length ? '<i class="sd"></i>' : '');
     cells += `<button data-act="calDay" data-d="${k}" class="${d.getMonth()!==m.getMonth()?'out':''} ${k===t?'today':''} ${k===view.calSel?'sel':''}" aria-label="${d.getDate()} de ${MESES[d.getMonth()]}"><span class="num">${d.getDate()}</span><span class="marks">${marks}</span></button>`;
   }
   const dayEv = (evBy[view.calSel]||[]).sort((a,b) => (a.hora||'').localeCompare(b.hora||''));
@@ -327,7 +352,7 @@ function vCalendario(){
   <div class="row between" style="margin:20px 4px 10px"><h3 style="text-transform:capitalize">${DIAS[sel.getDay()]}, ${fmtDate(view.calSel)}</h3></div>
   <div class="stack">
     ${daySd.map(s => `<div class="card row"><div class="ico" style="--c:var(--c-datas);align-self:center">${ic('datas')}</div><div class="grow"><b>${esc(s.titulo)}</b><div class="small muted">Data especial</div></div></div>`).join('')}
-    ${dayEv.length ? dayEv.map(e => `<button class="card row" style="border:0;text-align:left;width:100%" data-act="editEvent" data-id="${e.id}"><div class="num" style="width:48px;font-weight:800;color:var(--c-calendario)">${esc(e.hora||'Dia')}</div><div class="grow"><b>${esc(e.titulo)}</b>${e.nota?`<div class="small muted">${esc(e.nota)}</div>`:''}<div class="small muted">${e.quem && e.quem!=='ambos' ? esc(nameOf(e.quem)) : 'Os dois'}</div></div></button>`).join('') : (daySd.length ? '' : `<p class="muted" style="padding:0 4px">Nada marcado para este dia.</p>`)}
+    ${dayEv.length ? dayEv.map(e => `<button class="card row" style="border:0;text-align:left;width:100%${tagOf(e.cor)?`;box-shadow:inset 5px 0 0 ${tagColor(e.cor)}`:''}" data-act="editEvent" data-id="${e.id}"><div class="num" style="width:48px;font-weight:800;color:${tagColor(e.cor,'var(--c-calendario)')}">${esc(e.hora||'Dia')}</div><div class="grow"><b>${esc(e.titulo)}</b>${e.nota?`<div class="small muted">${esc(e.nota)}</div>`:''}<div class="small muted">${e.quem && e.quem!=='ambos' ? esc(nameOf(e.quem)) : 'Os dois'}${tagOf(e.cor)?` · <span style="color:${tagColor(e.cor)};font-weight:700">${esc(tagOf(e.cor).nome)}</span>`:''}</div></div></button>`).join('') : (daySd.length ? '' : `<p class="muted" style="padding:0 4px">Nada marcado para este dia.</p>`)}
   </div>` + fab('newEvent');
 }
 const whoOptions = (both=true) => [...(both?[{v:'ambos',t:'Os dois'}]:[]), ...memberIds().map(id => ({v:id, t:nameOf(id)}))];
@@ -338,6 +363,7 @@ function eventForm(e={}){
     {id:'data',label:'Data',type:'date',value:e.data||view.calSel,required:true},
     {id:'hora',label:'Hora (opcional)',type:'time',value:e.hora},
     {id:'quem',label:'Para quem',type:'select',options:whoOptions(),value:e.quem||'ambos'},
+    {id:'cor',label:'Etiqueta',type:'swatch',value:e.cor},
     {id:'nota',label:'Notas',type:'textarea',value:e.nota}
   ], onSave: async v => { const doc = {...v, por:e.por||S.uid, criado:e.criado||Date.now()}; e.id ? await store.set('eventos',e.id,doc) : await store.add('eventos',doc); view.calSel = v.data; view.calMonth = v.data.slice(0,7); toast('Evento guardado'); },
     onDelete: e.id ? () => store.remove('eventos', e.id) : null });
@@ -542,7 +568,7 @@ function vHorario(){
   for (let i=0;i<7;i++){
     const it = rows.filter(h => +h.dia === i).sort((a,b) => (a.inicio||'').localeCompare(b.inicio||''));
     if (!it.length) continue;
-    days += `<div><div class="label" style="margin:0 4px 6px">${['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'][i]}</div><div class="stack" style="gap:6px">${it.map(h => `<button class="slot" style="--c:${colorOf(h.quem)}" data-act="editSlot" data-id="${h.id}"><div class="row between"><b>${esc(h.titulo)}</b><span class="num small muted">${esc(h.inicio||'')}${h.fim?'–'+esc(h.fim):''}</span></div><div class="small muted">${esc(nameOf(h.quem))}${h.local?' · '+esc(h.local):''}</div></button>`).join('')}</div></div>`;
+    days += `<div><div class="label" style="margin:0 4px 6px">${['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'][i]}</div><div class="stack" style="gap:6px">${it.map(h => `<button class="slot" style="--c:${tagColor(h.cor, colorOf(h.quem))}" data-act="editSlot" data-id="${h.id}"><div class="row between"><b>${esc(h.titulo)}</b><span class="num small muted">${esc(h.inicio||'')}${h.fim?'–'+esc(h.fim):''}</span></div><div class="small muted">${esc(nameOf(h.quem))}${h.local?' · '+esc(h.local):''}${tagOf(h.cor)?` · <span style="color:${tagColor(h.cor)};font-weight:700">${esc(tagOf(h.cor).nome)}</span>`:''}</div></button>`).join('')}</div></div>`;
   }
   return header('Horários','horario') + `<div class="seg" style="margin-bottom:14px"><button class="${who==='todos'?'on':''}" data-act="ttWho" data-w="todos">Os dois</button>${ids.map(id => `<button class="${who===id?'on':''}" data-act="ttWho" data-w="${esc(id)}">${esc(nameOf(id))}</button>`).join('')}</div>` +
   (days ? `<div class="tt">${days}</div>` : empty('horario','Trabalho, ginásio, aulas… vejam quando estão os dois livres.',['newSlot','Adicionar horário'])) + fab('newSlot');
@@ -555,9 +581,10 @@ function slotForm(h={}){
     {id:'inicio',label:'Início',type:'time',value:h.inicio||'09:00'},
     {id:'fim',label:'Fim',type:'time',value:h.fim||'18:00'},
     {id:'local',label:'Local (opcional)',value:h.local},
+    {id:'cor',label:'Etiqueta',type:'swatch',value:h.cor},
     ...(h.id ? [] : [{id:'repetir',label:'Repetir de segunda a sexta',type:'checkbox'}])
   ], onSave: async v => {
-    const base = {titulo:v.titulo, quem:v.quem, dia:+v.dia, inicio:v.inicio, fim:v.fim, local:v.local};
+    const base = {titulo:v.titulo, quem:v.quem, dia:+v.dia, inicio:v.inicio, fim:v.fim, local:v.local, cor:v.cor};
     if (h.id) await store.set('horario', h.id, base);
     else if (v.repetir) { for (let i=0;i<5;i++) await store.add('horario', {...base, dia:i}); }
     else await store.add('horario', base);
