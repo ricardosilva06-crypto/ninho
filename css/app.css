@@ -329,3 +329,6 @@ input.in[type=date]::-webkit-date-and-time-value,input.in[type=time]::-webkit-da
 .rchip{flex:none;border:0;padding:8px 13px;border-radius:999px;background:var(--surface-2);color:var(--ink);font-weight:700;font-size:14px}
 .rchip.on{background:var(--ink);color:var(--bg)}
 .rep-hero .pill{white-space:nowrap}
+.tile .tile-big{order:1;font-family:var(--display);font-size:clamp(20px,7vw,28px);font-weight:800;line-height:1;letter-spacing:-.01em;position:relative;z-index:1;margin-top:-2px;white-space:nowrap}
+.tile h3{order:0}.tile .sub{order:2}.tile .peek{order:3}
+.tile .tile-big.sm{font-size:clamp(17px,5.4vw,22px)}

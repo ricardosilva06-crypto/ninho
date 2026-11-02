@@ -1,5 +1,5 @@
 // App-shell cache: the app opens offline; data always comes from Supabase.
-const CACHE = 'ninho-v19';
+const CACHE = 'ninho-v20';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'icons/icon-192.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

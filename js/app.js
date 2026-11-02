@@ -240,7 +240,7 @@ function subtitle(k){
       if (!nx) return 'Nada marcado';
       const dd = diffDays(t, parse(nx.data)); const when = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd < 7 ? DIAS[parse(nx.data).getDay()] : fmtDate(nx.data);
       return `${nx.titulo} · ${when}${nx.hora ? ' ' + nx.hora : ''}`; }
-    case 'orcamento': { const m = iso(t).slice(0,7); const g = d.orcamento.filter(e => e.tipo !== 'receita' && (e.data||'').startsWith(m)).reduce((a,e) => a + (+e.valor||0), 0); return g ? `${eur(g)} gastos este mês` : 'Despesas e contas a dois'; }
+    case 'orcamento': { const m = iso(t).slice(0,7); const g = d.orcamento.filter(e => e.tipo !== 'receita' && (e.data||'').startsWith(m)).reduce((a,e) => a + (+e.valor||0), 0); if (hasJoint()) return 'na conta conjunta'; return g ? `${eur(g)} gastos este mês` : 'Despesas e contas a dois'; }
     case 'documentos': return d.documentos.length ? plural(d.documentos.length,'documento','documentos') : 'Guarda o que é importante';
     case 'datas': { const nx = nextSpecial(); return nx ? `${nx.title}: ${nx.days === 0 ? 'hoje!' : 'faltam '+plural(nx.days,'dia','dias')}` : 'Contagem para o que importa'; }
     case 'refeicoes': { const r = d.refeicoes.find(x => x.id === iso(t)); return r && (r.jantar||r.almoco) ? `Hoje: ${r.jantar||r.almoco}` : 'Planeia a semana'; }
@@ -312,7 +312,7 @@ function vHome(){
   </section>` : ''}
   <section class="tiles" aria-label="Módulos">
     ${tile('listas','Listas',0, openItems.length ? `<div class="peek">${openItems.map(i => `<span><i></i>${esc(i.texto)}</span>`).join('')}</div>` : '', 'wide')}
-    ${MODS.filter(([k]) => k !== 'listas').map(([k,n],i) => tile(k, n, i+1)).join('')}
+    ${MODS.filter(([k]) => k !== 'listas').map(([k,n],i) => k === 'orcamento' && hasJoint() ? tile(k, n, i+1, `<div class="tile-big num">${eur(jointBalance())}</div>`) : tile(k, n, i+1)).join('')}
   </section>`;
 }
 
@@ -380,6 +380,7 @@ const CATS = ['Casa','Supermercado','Restaurantes','Transportes','Lazer','Saúde
 const sumV = (a) => a.reduce((s,r) => s + (+r.valor||0), 0);
 const jointCfg = () => S.data.definicoes.find(x => x.id === 'conjunta') || {};
 const isJoint = (r) => r.conta === 'conjunta';
+const hasJoint = () => jointCfg().inicial != null || S.data.orcamento.some(isJoint);
 function jointBalance(){
   const J = S.data.orcamento.filter(isJoint);
   let bal = (+jointCfg().inicial || 0) + sumV(J.filter(r => r.tipo === 'receita')) - sumV(J.filter(r => r.tipo !== 'receita'));
