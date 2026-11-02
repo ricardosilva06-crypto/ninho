@@ -19,6 +19,7 @@ const P = {
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
   send:'<path d="M4 12l16-8-6 16-2.5-6.5z"/>', chev:'<path d="M9 5l7 7-7 7"/>', copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
+  clip:'<path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/>',
   cart:'<path d="M3 4h2.5l2.2 11h10.6L20.5 8H6.5"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'
 };
 const ic = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||''}</svg>`;
@@ -48,7 +49,7 @@ const plural = (n, one, many) => `${n} ${n===1?one:many}`;
 const rid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
 
 /* ---------- store: Supabase, one "items" table holding JSON documents per household ---------- */
-const COLS = ['listas','eventos','orcamento','documentos','datas','refeicoes','horario','receitas','lugares','membros','galeria','contactos','definicoes','mensagens'];
+const COLS = ['listas','eventos','orcamento','documentos','datas','refeicoes','horario','receitas','lugares','membros','galeria','contactos','definicoes','mensagens','vaquinhas'];
 const S = { data:{}, msgs:[], uid:null, email:null, hid:null, household:null, mode:'loading', writable:true, profiles:{}, sb:null, urls:{} };
 COLS.forEach(c => S.data[c] = []);
 const watchers = {};
@@ -325,41 +326,136 @@ function eventForm(e={}){
 }
 
 /* Budget */
-const CATS = ['Casa','Supermercado','Restaurantes','Transportes','Lazer','Saúde','Viagens','Presentes','Contas','Outros'];
+const CATS = ['Casa','Supermercado','Restaurantes','Transportes','Lazer','Saúde','Viagens','Presentes','Contas','Contribuição','Outros'];
+const sumV = (a) => a.reduce((s,r) => s + (+r.valor||0), 0);
+const jointCfg = () => S.data.definicoes.find(x => x.id === 'conjunta') || {};
+const isJoint = (r) => r.conta === 'conjunta';
+function jointBalance(){
+  const J = S.data.orcamento.filter(isJoint);
+  let bal = sumV(J.filter(r => r.tipo === 'receita')) - sumV(J.filter(r => r.tipo !== 'receita'));
+  S.data.vaquinhas.forEach(v => (v.movs||[]).forEach(m => { if (m.origem === 'conjunta') bal -= (+m.valor||0); }));
+  return bal;
+}
+const potTotal = (v) => (v.movs||[]).reduce((s,m) => s + (+m.valor||0), 0);
+function monthNav(){
+  const [y,mo] = view.budMonth.split('-').map(Number);
+  return `<div class="row between" style="margin-bottom:12px"><button class="iconbtn" data-act="budPrev" aria-label="Mês anterior">${ic('back')}</button><h3 style="text-transform:capitalize">${MESES[mo-1]} ${y}</h3><button class="iconbtn" data-act="budNext" aria-label="Mês seguinte">${ic('chev')}</button></div>`;
+}
+function movRow(r){
+  return `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b>${isJoint(r)?' <span class="pill" style="--c:var(--c-calendario)">Conjunta</span>':''}${r.fatura?` <span class="pill" style="--c:var(--c-documentos)" title="Tem fatura">${ic('clip').replace('<svg','<svg style="width:12px;height:12px;vertical-align:-1px"')} fatura</span>`:''}<div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago?(isJoint(r)?' · '+esc(nameOf(r.pago)):' · pago por '+esc(nameOf(r.pago))):''}${!isJoint(r)&&r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`;
+}
 function vOrcamento(){
-  const mk = view.budMonth; const [y,mo] = mk.split('-').map(Number);
+  const tab = view.budTab || 'movimentos';
+  const tabs = `<div class="seg" style="margin-bottom:14px">${[['movimentos','Movimentos'],['conjunta','Conta conjunta'],['vaquinhas','Vaquinhas']].map(([k,t]) => `<button class="${tab===k?'on':''}" data-act="budTab" data-t="${k}">${t}</button>`).join('')}</div>`;
+  const body = tab === 'conjunta' ? vConjunta() : tab === 'vaquinhas' ? vVaquinhas() : vMovimentos();
+  return header('Orçamento','orcamento') + tabs + body;
+}
+function vMovimentos(){
+  const mk = view.budMonth;
   const rows = S.data.orcamento.filter(e => (e.data||'').startsWith(mk)).sort((a,b) => b.data.localeCompare(a.data));
   const out = rows.filter(r => r.tipo !== 'receita'), inc = rows.filter(r => r.tipo === 'receita');
-  const sum = (a) => a.reduce((s,r) => s + (+r.valor||0), 0);
-  const gastos = sum(out), entradas = sum(inc);
+  const gastos = sumV(out), entradas = sumV(inc);
   const byCat = {}; out.forEach(r => byCat[r.cat||'Outros'] = (byCat[r.cat||'Outros']||0) + (+r.valor||0));
   const cats = Object.entries(byCat).sort((a,b) => b[1]-a[1]);
-  /* settle-up: shared expenses split 50/50 between the two */
+  /* settle-up: personal shared expenses split 50/50 */
   const ids = memberIds(); let settle = '';
   if (ids.length >= 2) {
-    const [a,b] = ids; let bal = 0; // positive => b owes a
-    S.data.orcamento.filter(r => r.tipo !== 'receita' && r.partilhado && !r.acertado).forEach(r => { const half = (+r.valor||0)/2; if (r.pago === a) bal += half; else if (r.pago === b) bal -= half; });
+    const [a,b] = ids; let bal = 0;
+    S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado).forEach(r => { const half = (+r.valor||0)/2; if (r.pago === a) bal += half; else if (r.pago === b) bal -= half; });
     settle = Math.abs(bal) < 0.005 ? `<p>Estão quites. 🤝</p>` : `<p><b>${esc(nameOf(bal>0?b:a))}</b> deve <b class="num">${eur(Math.abs(bal))}</b> a <b>${esc(nameOf(bal>0?a:b))}</b></p><button class="btn sm" data-act="settle" style="justify-self:start">Marcar como acertado</button>`;
   }
-  return header('Orçamento','orcamento') + `
-  <div class="row between" style="margin-bottom:12px"><button class="iconbtn" data-act="budPrev" aria-label="Mês anterior">${ic('back')}</button><h3 style="text-transform:capitalize">${MESES[mo-1]} ${y}</h3><button class="iconbtn" data-act="budNext" aria-label="Mês seguinte">${ic('chev')}</button></div>
+  return monthNav() + `
   <div class="kpis"><div class="card"><span class="label">Gastos</span><b class="num money-neg">${eur(gastos)}</b></div><div class="card"><span class="label">Entradas</span><b class="num money-pos">${eur(entradas)}</b></div><div class="card"><span class="label">Saldo</span><b class="num ${entradas-gastos>=0?'money-pos':'money-neg'}">${eur(entradas-gastos)}</b></div></div>
-  ${settle ? `<div class="card stack" style="margin-top:12px"><div class="label">Contas entre os dois</div>${settle}<p class="small muted">Conta só as despesas marcadas como "a meias" ainda por acertar.</p></div>` : ''}
+  ${settle ? `<div class="card stack" style="margin-top:12px"><div class="label">Contas entre os dois</div>${settle}<p class="small muted">Conta só as despesas pessoais marcadas como "a meias" ainda por acertar.</p></div>` : ''}
   ${cats.length ? `<div class="card stack" style="margin-top:12px"><div class="label">Por categoria</div>${cats.map(([c,v]) => `<div class="stack" style="gap:4px"><div class="row between small"><span>${esc(c)}</span><span class="num">${eur(v)}</span></div><div class="bar"><i style="width:${Math.round(v/gastos*100)}%"></i></div></div>`).join('')}</div>` : ''}
   <div class="label" style="margin:20px 4px 8px">Movimentos</div>
-  ${rows.length ? `<div class="card">${rows.map(r => `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b><div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago?' · pago por '+esc(nameOf(r.pago)):''}${r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`).join('')}</div>` : empty('orcamento','Sem movimentos neste mês.',['newMov','Adicionar despesa'])}` + fab('newMov');
+  ${rows.length ? `<div class="card">${rows.map(movRow).join('')}</div>` : empty('orcamento','Sem movimentos neste mês.',['newMov','Adicionar despesa'])}` + fab('newMov');
 }
-function movForm(r={}){
-  sheet({ title: r.id ? 'Editar movimento' : 'Novo movimento', fields:[
-    {id:'tipo',label:'Tipo',type:'select',options:[{v:'despesa',t:'Despesa'},{v:'receita',t:'Entrada'}],value:r.tipo||'despesa'},
-    {id:'titulo',label:'Descrição',value:r.titulo,required:true,ph:'Supermercado'},
-    {id:'valor',label:'Valor (€)',type:'number',value:r.valor,required:true},
+function vConjunta(){
+  const cfg = jointCfg(); const pct = cfg.pct ?? 30; const sal = cfg.salarios || {};
+  const mk = view.budMonth; const ids = memberIds();
+  const J = S.data.orcamento.filter(r => isJoint(r) && (r.data||'').startsWith(mk)).sort((a,b) => b.data.localeCompare(a.data));
+  const bal = jointBalance();
+  const people = ids.map(id => {
+    const expected = (+sal[id]||0) * pct / 100;
+    const paid = sumV(J.filter(r => r.tipo === 'receita' && r.pago === id));
+    const k = expected ? Math.min(100, Math.round(paid/expected*100)) : 0;
+    return `<div class="stack" style="gap:6px"><div class="row between"><div class="row">${avatar(id,28)}<b>${esc(nameOf(id))}</b></div><span class="num small">${eur(paid)} / ${expected?eur(expected):'—'}</span></div>
+      <div class="bar"><i style="width:${k}%;${paid>=expected&&expected?'':'background:var(--c-calendario)'}"></i></div>
+      <div class="row between small"><span class="muted">${expected ? (paid >= expected ? 'Contribuição do mês feita ✓' : `Falta ${eur(expected-paid)}`) : 'Salário por definir'}</span>${expected && paid < expected ? `<button class="btn sm" data-act="jointDeposit" data-id="${esc(id)}" data-v="${(expected-paid).toFixed(2)}">Registar transferência</button>` : ''}</div></div>`;
+  }).join('<hr style="border:0;border-top:1px solid var(--line);margin:4px 0">');
+  const totalExp = ids.reduce((s,id) => s + (+sal[id]||0)*pct/100, 0);
+  return `<div class="card stack" style="background:linear-gradient(135deg,var(--hero-a),var(--hero-b));color:#fff">
+      <div class="label" style="color:rgba(255,255,255,.8)">Saldo da conta conjunta</div>
+      <div class="num" style="font-family:var(--display);font-size:38px;font-weight:800;line-height:1">${eur(bal)}</div>
+      <div class="small" style="opacity:.9">Cada um contribui com <b>${pct}%</b> do salário${totalExp?` · ${eur(totalExp)} por mês no total`:''}</div>
+      <button class="chip" data-act="jointSettings" style="justify-self:start">Salários e percentagem</button></div>
+    <div style="margin-top:14px">${monthNav()}</div>
+    <div class="card stack">${ids.length ? people : '<p class="muted">Ainda não há membros.</p>'}</div>
+    <div class="label" style="margin:20px 4px 8px">Movimentos da conta conjunta</div>
+    ${J.length ? `<div class="card">${J.map(movRow).join('')}</div>` : `<p class="muted" style="padding:0 4px">Sem movimentos neste mês. Usa o + para registar despesas pagas pela conta conjunta.</p>`}` + fab('newJointMov');
+}
+function vVaquinhas(){
+  const V = [...S.data.vaquinhas].sort((a,b) => (a.criado||0)-(b.criado||0));
+  const t = today();
+  return (V.length ? `<div class="stack">${V.map(v => {
+    const got = potTotal(v), goal = +v.objetivo || 0, k = goal ? Math.min(100, Math.round(got/goal*100)) : 0;
+    let hint = '';
+    if (goal && got < goal && v.prazo) { const months = Math.max(1, Math.ceil(diffDays(t, parse(v.prazo)) / 30.4)); hint = diffDays(t, parse(v.prazo)) < 0 ? 'Prazo ultrapassado' : `Poupar ${eur((goal-got)/months)}/mês até ${fmtDate(v.prazo)}`; }
+    else if (goal && got >= goal) hint = 'Objetivo atingido! 🎉';
+    return `<div class="card stack" style="gap:10px"><button class="row" style="border:0;background:none;padding:0;text-align:left;width:100%" data-act="editPot" data-id="${v.id}"><div style="font-size:30px;line-height:1">${esc(v.emoji||'🐷')}</div><div class="grow"><h3>${esc(v.nome)}</h3><div class="small muted num">${eur(got)}${goal?' de '+eur(goal):''}</div></div>${goal?`<b class="num" style="color:var(--c-orcamento)">${k}%</b>`:''}</button>
+      ${goal ? `<div class="bar"><i style="width:${k}%"></i></div>` : ''}${hint?`<div class="small muted">${hint}</div>`:''}
+      <div class="row" style="gap:8px"><button class="btn sm primary" data-act="potMove" data-id="${v.id}" data-dir="1">Pôr dinheiro</button><button class="btn sm" data-act="potMove" data-id="${v.id}" data-dir="-1">Tirar</button><button class="btn sm" data-act="potHistory" data-id="${v.id}">Histórico</button></div></div>`;
+  }).join('')}</div>` : empty('orcamento','Criem vaquinhas para poupar juntos: férias, casamento, um carro novo…',['newPot','Criar vaquinha'])) + fab('newPot');
+}
+function potForm(v={}){
+  sheet({ title: v.id ? 'Editar vaquinha' : 'Nova vaquinha', fields:[
+    {id:'nome',label:'Nome',value:v.nome,required:true,ph:'Férias no Algarve'},
+    {id:'emoji',label:'Emoji',value:v.emoji||'🐷'},
+    {id:'objetivo',label:'Objetivo (€, opcional)',type:'number',value:v.objetivo},
+    {id:'prazo',label:'Até quando (opcional)',type:'date',value:v.prazo}
+  ], onSave: async x => { const doc = {nome:x.nome, emoji:x.emoji||'🐷', objetivo:x.objetivo, prazo:x.prazo, movs:v.movs||[], criado:v.criado||Date.now()}; v.id ? await store.set('vaquinhas', v.id, doc) : await store.add('vaquinhas', doc); toast('Vaquinha guardada'); },
+  onDelete: v.id ? () => store.remove('vaquinhas', v.id) : null });
+}
+function potMoveForm(v, dir){
+  sheet({ title: dir > 0 ? `Pôr dinheiro · ${v.nome}` : `Tirar dinheiro · ${v.nome}`, save: dir > 0 ? 'Pôr' : 'Tirar', fields:[
+    {id:'valor',label:'Valor (€)',type:'number',required:true},
+    {id:'quem',label:'Quem',type:'select',options:whoOptions(false),value:S.uid},
+    {id:'origem',label: dir > 0 ? 'De onde vem o dinheiro' : 'Para onde vai o dinheiro',type:'select',options:[{v:'conjunta',t:'Conta conjunta'},{v:'pessoal',t:'Dinheiro pessoal'}],value:'conjunta'},
+    {id:'data',label:'Data',type:'date',value:iso(today())},
+    {id:'nota',label:'Nota (opcional)'}
+  ], onSave: async x => { const m = {id:rid(), valor:dir*Math.abs(x.valor||0), quem:x.quem, origem:x.origem, data:x.data, nota:x.nota}; await store.update('vaquinhas', v.id, {movs:[...(v.movs||[]), m]}); toast(dir > 0 ? 'Dinheiro guardado 🐷' : 'Levantamento registado'); } });
+}
+function potHistory(v){
+  const M = [...(v.movs||[])].sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  sheet({ title: `Histórico · ${v.nome}`, extra: M.length ? `<div>${M.map(m => `<div class="list-item"><div class="grow"><b>${esc(nameOf(m.quem))}</b><div class="small muted">${fmtDate(m.data)} · ${m.origem==='conjunta'?'conta conjunta':'pessoal'}${m.nota?' · '+esc(m.nota):''}</div></div><b class="num ${m.valor>=0?'money-pos':'money-neg'}">${m.valor>=0?'+':'−'}${eur(Math.abs(m.valor))}</b><button type="button" class="iconbtn" data-act="potDelMov" data-id="${v.id}" data-m="${m.id}" aria-label="Apagar">${ic('trash')}</button></div>`).join('')}</div>` : '<p class="muted">Ainda sem movimentos.</p>' });
+}
+function movForm(r={}, preset={}){
+  const joint = (r.conta || preset.conta) === 'conjunta';
+  const extra = r.fatura ? `<div class="row between card" style="padding:10px 12px;background:var(--surface-2);box-shadow:none"><a href="${blobUrl(r.fatura)}" target="_blank" rel="noopener" data-fatura="${esc(r.fatura)}">${ic('clip').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px"')} Ver fatura</a><label class="checkline small"><input type="checkbox" id="f-semfatura"> Remover</label></div>` : '';
+  const form = sheet({ title: r.id ? 'Editar movimento' : (joint ? 'Movimento da conta conjunta' : 'Novo movimento'), fields:[
+    {id:'tipo',label:'Tipo',type:'select',options:[{v:'despesa',t:'Despesa'},{v:'receita',t:joint?'Entrada (transferência para a conta)':'Entrada'}],value:r.tipo||preset.tipo||'despesa'},
+    {id:'titulo',label:'Descrição',value:r.titulo ?? preset.titulo,required:true,ph:'Supermercado'},
+    {id:'valor',label:'Valor (€)',type:'number',value:r.valor ?? preset.valor,required:true},
     {id:'data',label:'Data',type:'date',value:r.data||iso(today()),required:true},
-    {id:'cat',label:'Categoria',type:'select',options:CATS.map(c => ({v:c,t:c})),value:r.cat||'Supermercado'},
-    {id:'pago',label:'Quem pagou',type:'select',options:whoOptions(false),value:r.pago||S.uid},
-    {id:'partilhado',label:'Despesa a meias',type:'checkbox',value:r.id ? r.partilhado : true}
-  ], onSave: async v => { const doc = {...v, valor:Math.abs(v.valor||0), acertado:!!r.acertado, criado:r.criado||Date.now()}; r.id ? await store.set('orcamento',r.id,doc) : await store.add('orcamento',doc); view.budMonth = v.data.slice(0,7); toast('Guardado'); },
-    onDelete: r.id ? () => store.remove('orcamento', r.id) : null });
+    {id:'conta',label:'Conta',type:'select',options:[{v:'pessoal',t:'Pessoal'},{v:'conjunta',t:'Conta conjunta'}],value:r.conta||preset.conta||'pessoal'},
+    {id:'cat',label:'Categoria',type:'select',options:CATS.map(c => ({v:c,t:c})),value:r.cat||preset.cat||'Supermercado'},
+    {id:'pago',label:'Quem pagou / transferiu',type:'select',options:whoOptions(false),value:r.pago||preset.pago||S.uid},
+    {id:'partilhado',label:'Despesa a meias (só para conta pessoal)',type:'checkbox',value:r.id ? r.partilhado : !joint},
+    {id:'fatura',label:r.fatura?'Trocar fatura':'Fatura (PDF ou foto, opcional)',type:'file',accept:'application/pdf,image/*'}
+  ], extra, onSave: async v => {
+    const doc = {tipo:v.tipo, titulo:v.titulo, valor:Math.abs(v.valor||0), data:v.data, conta:v.conta, cat:v.cat, pago:v.pago, partilhado:v.conta==='conjunta'?false:v.partilhado, acertado:!!r.acertado, criado:r.criado||Date.now(), fatura:r.fatura||null, faturaTipo:r.faturaTipo||null};
+    const old = r.fatura;
+    const rm = document.getElementById('f-semfatura');
+    if (rm && rm.checked) { doc.fatura = null; doc.faturaTipo = null; }
+    if (v.fatura && v.fatura[0]) { const u = await upload(v.fatura[0]); doc.fatura = u.id; doc.faturaTipo = u.contentType; }
+    r.id ? await store.set('orcamento', r.id, doc) : await store.add('orcamento', doc);
+    if (old && old !== doc.fatura) deleteFile(old);
+    view.budMonth = v.data.slice(0,7); toast('Guardado');
+  }, onDelete: r.id ? async () => { await store.remove('orcamento', r.id); if (r.fatura) deleteFile(r.fatura); } : null });
+  /* the signed link may not be ready on first open: refresh it in place */
+  const a = form.querySelector('[data-fatura]');
+  if (a && a.getAttribute('href') === PIXEL) S.sb.storage.from('ficheiros').createSignedUrl(a.dataset.fatura, 3600).then(({data}) => { if (data) a.href = data.signedUrl; });
 }
 
 /* Documents */
@@ -587,7 +683,7 @@ const byId = (c, id) => S.data[c].find(x => x.id === id);
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, id = b.dataset.id;
-  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout','invite'].includes(a);
+  const needW = !['openList','listBack','calDay','calPrev','calNext','budPrev','budNext','wkPrev','wkNext','ttWho','openRecipe','recipeBack','placeF','openPhoto','photoBack','copy','logout','invite','budTab','potHistory'].includes(a);
   if (needW && !S.writable) { toast('Estás em modo de leitura.'); return; }
   switch(a){
     case 'couple': { const c = couple(); sheet({title:'O nosso ninho', fields:[{id:'nome',label:'Nome da app',value:c.nome||'Ninho'},{id:'desde',label:'Juntos desde',type:'date',value:c.desde}], onSave: async v => { await store.set('definicoes','casal',v); toast('Guardado'); }}); break; }
@@ -605,7 +701,18 @@ document.addEventListener('click', async (e) => {
     case 'budPrev': case 'budNext': { const m = parse(view.budMonth+'-01'); m.setMonth(m.getMonth() + (a==='budNext'?1:-1)); view.budMonth = iso(m).slice(0,7); render(); break; }
     case 'newMov': movForm(); break;
     case 'editMov': movForm(byId('orcamento', id)); break;
-    case 'settle': { const open = S.data.orcamento.filter(r => r.tipo !== 'receita' && r.partilhado && !r.acertado); for (const r of open) await store.update('orcamento', r.id, {acertado:true}); toast('Contas acertadas'); break; }
+    case 'budTab': view.budTab = b.dataset.t; render(); break;
+    case 'newJointMov': movForm({}, {conta:'conjunta', cat:'Casa'}); break;
+    case 'jointDeposit': movForm({}, {conta:'conjunta', tipo:'receita', cat:'Contribuição', titulo:'Contribuição mensal', valor:+b.dataset.v, pago:id}); break;
+    case 'jointSettings': { const cfg = jointCfg(); const sal = cfg.salarios || {}; const ids = memberIds();
+      sheet({title:'Conta conjunta', fields:[{id:'pct',label:'Percentagem do salário de cada um (%)',type:'number',value:cfg.pct ?? 30}, ...ids.map((m,i) => ({id:'s'+i, label:`Salário líquido de ${nameOf(m)} (€)`, type:'number', value:sal[m]}))],
+        onSave: async v => { const salarios = {}; ids.forEach((m,i) => { if (v['s'+i] != null) salarios[m] = Math.abs(v['s'+i]); }); await store.set('definicoes','conjunta',{pct: v.pct ?? 30, salarios}); toast('Guardado'); }}); break; }
+    case 'newPot': potForm(); break;
+    case 'editPot': potForm(byId('vaquinhas', id)); break;
+    case 'potMove': potMoveForm(byId('vaquinhas', id), +b.dataset.dir); break;
+    case 'potHistory': potHistory(byId('vaquinhas', id)); break;
+    case 'potDelMov': { const v = byId('vaquinhas', id); await store.update('vaquinhas', id, {movs:(v.movs||[]).filter(m => m.id !== b.dataset.m)}); closeSheet(); potHistory(byId('vaquinhas', id)); toast('Apagado'); break; }
+    case 'settle': { const open = S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado); for (const r of open) await store.update('orcamento', r.id, {acertado:true}); toast('Contas acertadas'); break; }
     case 'newDoc': docForm(); break;
     case 'editDoc': docForm(byId('documentos', id)); break;
     case 'newDay': dayForm(); break;
