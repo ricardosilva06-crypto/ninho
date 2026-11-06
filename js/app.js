@@ -380,11 +380,14 @@ const CATS = ['Casa','Supermercado','Restaurantes','Transportes','Lazer','Saúde
 const sumV = (a) => a.reduce((s,r) => s + (+r.valor||0), 0);
 const jointCfg = () => S.data.definicoes.find(x => x.id === 'conjunta') || {};
 const isJoint = (r) => r.conta === 'conjunta';
+/* personal expense the joint account paid back */
+const isJointSettled = (r) => !isJoint(r) && r.tipo !== 'receita' && !!r.acertadoConjunta;
 const hasJoint = () => jointCfg().inicial != null || S.data.orcamento.some(isJoint);
 function jointBalance(){
   const J = S.data.orcamento.filter(isJoint);
   let bal = (+jointCfg().inicial || 0) + sumV(J.filter(r => r.tipo === 'receita')) - sumV(J.filter(r => r.tipo !== 'receita'));
   S.data.vaquinhas.forEach(v => (v.movs||[]).forEach(m => { if (m.origem === 'conjunta') bal -= (+m.valor||0); }));
+  bal -= sumV(S.data.orcamento.filter(isJointSettled));
   return bal;
 }
 const potTotal = (v) => (v.movs||[]).reduce((s,m) => s + (+m.valor||0), 0);
@@ -393,7 +396,7 @@ function monthNav(){
   return `<div class="row between" style="margin-bottom:12px"><button class="iconbtn" data-act="budPrev" aria-label="Mês anterior">${ic('back')}</button><h3 style="text-transform:capitalize">${MESES[mo-1]} ${y}</h3><button class="iconbtn" data-act="budNext" aria-label="Mês seguinte">${ic('chev')}</button></div>`;
 }
 function movRow(r){
-  return `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b>${isJoint(r)?' <span class="pill" style="--c:var(--c-calendario)">Conjunta</span>':''}${r.fatura?` <span class="pill" style="--c:var(--c-documentos)" title="Tem fatura">${ic('clip').replace('<svg','<svg style="width:12px;height:12px;vertical-align:-1px"')} fatura</span>`:''}<div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago==='cartao'?' · 💳 cartão conjunto':r.pago?(isJoint(r)?' · '+esc(nameOf(r.pago)):' · pago por '+esc(nameOf(r.pago))):''}${!isJoint(r)&&r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`;
+  return `<button class="list-item" style="width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left" data-act="editMov" data-id="${r.id}"><div class="grow"><b>${esc(r.titulo)}</b>${isJoint(r)?' <span class="pill" style="--c:var(--c-calendario)">Conjunta</span>':''}${isJointSettled(r)?' <span class="pill" style="--c:var(--c-calendario)">💳 Acertado</span>':''}${r.fatura?` <span class="pill" style="--c:var(--c-documentos)" title="Tem fatura">${ic('clip').replace('<svg','<svg style="width:12px;height:12px;vertical-align:-1px"')} fatura</span>`:''}<div class="small muted">${fmtDate(r.data)} · ${esc(r.cat||'Outros')}${r.pago==='cartao'?' · 💳 cartão conjunto':r.pago?(isJoint(r)?' · '+esc(nameOf(r.pago)):' · pago por '+esc(nameOf(r.pago))):''}${isJointSettled(r)?' · acertado com conta conjunta':!isJoint(r)&&r.partilhado?(r.acertado?' · acertado':' · a meias'):''}</div></div><div class="num ${r.tipo==='receita'?'money-pos':''}" style="font-weight:800">${r.tipo==='receita'?'+':'−'}${eur(r.valor)}</div></button>`;
 }
 function vOrcamento(){
   const tab = view.budTab || 'movimentos';
@@ -456,7 +459,7 @@ function vMovimentos(){
   const ids = memberIds(); let settle = '';
   if (ids.length >= 2) {
     const [a,b] = ids; let bal = 0;
-    S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado).forEach(r => { const half = (+r.valor||0)/2; if (r.pago === a) bal += half; else if (r.pago === b) bal -= half; });
+    S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado && !r.acertadoConjunta).forEach(r => { const half = (+r.valor||0)/2; if (r.pago === a) bal += half; else if (r.pago === b) bal -= half; });
     settle = Math.abs(bal) < 0.005 ? `<p>Estão quites. 🤝</p>` : `<p><b>${esc(nameOf(bal>0?b:a))}</b> deve <b class="num">${eur(Math.abs(bal))}</b> a <b>${esc(nameOf(bal>0?a:b))}</b></p><button class="btn sm" data-act="settle" style="justify-self:start">Marcar como acertado</button>`;
   }
   return monthNav() + `
@@ -469,11 +472,11 @@ function vMovimentos(){
 function vConjunta(){
   const cfg = jointCfg(); const pct = cfg.pct ?? 30; const sal = cfg.salarios || {};
   const mk = view.budMonth; const ids = memberIds();
-  const J = S.data.orcamento.filter(r => isJoint(r) && (r.data||'').startsWith(mk)).sort((a,b) => b.data.localeCompare(a.data));
+  const J = S.data.orcamento.filter(r => (isJoint(r) || isJointSettled(r)) && (r.data||'').startsWith(mk)).sort((a,b) => b.data.localeCompare(a.data));
   const bal = jointBalance();
   const people = ids.map(id => {
     const expected = (+sal[id]||0) * pct / 100;
-    const paid = sumV(J.filter(r => r.tipo === 'receita' && r.pago === id));
+    const paid = sumV(J.filter(r => isJoint(r) && r.tipo === 'receita' && r.pago === id));
     const k = expected ? Math.min(100, Math.round(paid/expected*100)) : 0;
     return `<div class="stack" style="gap:6px"><div class="row between"><div class="row">${avatar(id,28)}<b>${esc(nameOf(id))}</b></div><span class="num small">${eur(paid)} / ${expected?eur(expected):'—'}</span></div>
       <div class="bar"><i style="width:${k}%;${paid>=expected&&expected?'':'background:var(--c-calendario)'}"></i></div>
@@ -527,7 +530,11 @@ function potHistory(v){
 }
 function movForm(r={}, preset={}){
   const joint = (r.conta || preset.conta) === 'conjunta';
-  const extra = r.fatura ? `<div class="row between card" style="padding:10px 12px;background:var(--surface-2);box-shadow:none"><a href="${blobUrl(r.fatura)}" target="_blank" rel="noopener" data-fatura="${esc(r.fatura)}">${ic('clip').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px"')} Ver fatura</a><label class="checkline small"><input type="checkbox" id="f-semfatura"> Remover</label></div>` : '';
+  const canSettle = r.id && !isJoint(r) && r.tipo !== 'receita';
+  const settleBox = canSettle ? `<div class="card stack" style="padding:12px;background:var(--surface-2);box-shadow:none;gap:8px">${r.acertadoConjunta
+    ? `<div class="small">💳 Acertado com a conta conjunta: <b class="num">${eur(r.valor)}</b> já saiu da conta conjunta para ${esc(nameOf(r.pago))}.</div><button type="button" class="btn sm" style="justify-self:start;background:var(--surface)" data-act="jointSettle" data-id="${r.id}" data-undo="1">Desfazer acerto</button>`
+    : `<div class="small muted">Pagaste com a conta pessoal? Ao acertar, o valor é descontado do saldo da conta conjunta.</div><button type="button" class="btn sm primary" data-act="jointSettle" data-id="${r.id}" style="justify-self:start">💳 Acertar com conta conjunta</button>`}</div>` : '';
+  const extra = settleBox + (r.fatura ? `<div class="row between card" style="padding:10px 12px;background:var(--surface-2);box-shadow:none"><a href="${blobUrl(r.fatura)}" target="_blank" rel="noopener" data-fatura="${esc(r.fatura)}">${ic('clip').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px"')} Ver fatura</a><label class="checkline small"><input type="checkbox" id="f-semfatura"> Remover</label></div>` : '');
   const form = sheet({ title: r.id ? 'Editar movimento' : (joint ? 'Movimento da conta conjunta' : 'Novo movimento'), fields:[
     {id:'tipo',label:'Tipo',type:'select',options:[{v:'despesa',t:'Despesa'},{v:'receita',t:joint?'Entrada (transferência para a conta)':'Entrada'}, ...(r.id ? [] : [{v:'vaquinha',t:'🐷 Pôr numa vaquinha'}])],value:r.tipo||preset.tipo||'despesa'},
     ...(r.id ? [] : [{id:'pot',label:'Vaquinha',type:'select',options:[...S.data.vaquinhas.map(v => ({v:v.id, t:`${v.emoji||'🐷'} ${v.nome}`})), ...(S.data.vaquinhas.some(v => /poupan/i.test(v.nome||'')) ? [] : [{v:'__new',t:'＋ Criar vaquinha "Poupanças"'}])]}]),
@@ -538,6 +545,7 @@ function movForm(r={}, preset={}){
     {id:'cat',label:'Categoria',type:'select',options:CATS.map(c => ({v:c,t:c})),value:r.cat||preset.cat||'Supermercado'},
     {id:'pago',label:'Quem pagou / transferiu',type:'select',options:[...whoOptions(false), {v:'cartao',t:'💳 Cartão da conta conjunta'}],value:r.pago||preset.pago||(joint && (r.tipo||preset.tipo||'despesa')==='despesa' ? 'cartao' : S.uid)},
     {id:'partilhado',label:'Despesa a meias (só para conta pessoal)',type:'checkbox',value:r.id ? r.partilhado : !joint},
+    ...(r.id ? [] : [{id:'acertadoConjunta',label:'Acertado com conta conjunta (desconta do saldo da conjunta)',type:'checkbox',value:false}]),
     {id:'fatura',label:r.fatura?'Trocar fatura':'Fatura (PDF ou foto, opcional)',type:'file',accept:'application/pdf,image/*'}
   ], extra, onSave: async v => {
     if (v.tipo === 'vaquinha') {
@@ -551,7 +559,7 @@ function movForm(r={}, preset={}){
       toast(`Guardado na vaquinha ${pot.nome} 🐷`); return;
     }
     if (v.pago === 'cartao') { v.conta = 'conjunta'; if (v.tipo === 'receita') v.pago = S.uid; }
-    const doc = {tipo:v.tipo, titulo:v.titulo, valor:Math.abs(v.valor||0), data:v.data, conta:v.conta, cat:v.cat, pago:v.pago, partilhado:v.conta==='conjunta'?false:v.partilhado, acertado:!!r.acertado, criado:r.criado||Date.now(), fatura:r.fatura||null, faturaTipo:r.faturaTipo||null};
+    const doc = {tipo:v.tipo, titulo:v.titulo, valor:Math.abs(v.valor||0), data:v.data, conta:v.conta, cat:v.cat, pago:v.pago, partilhado:v.conta==='conjunta'?false:v.partilhado, acertado:!!r.acertado, acertadoConjunta:v.conta!=='conjunta' && v.tipo!=='receita' && !!(r.id ? r.acertadoConjunta : v.acertadoConjunta), criado:r.criado||Date.now(), fatura:r.fatura||null, faturaTipo:r.faturaTipo||null};
     const old = r.fatura;
     const rm = document.getElementById('f-semfatura');
     if (rm && rm.checked) { doc.fatura = null; doc.faturaTipo = null; }
@@ -561,6 +569,12 @@ function movForm(r={}, preset={}){
     view.budMonth = v.data.slice(0,7); toast('Guardado');
   }, onDelete: r.id ? async () => { await store.remove('orcamento', r.id); if (r.fatura) deleteFile(r.fatura); } : null });
   const tipoEl = form.querySelector('#f-tipo'), potEl = form.querySelector('#f-pot');
+  const acEl = form.querySelector('#f-acertadoConjunta');
+  if (acEl) {
+    const contaEl = form.querySelector('#f-conta'), pagoEl = form.querySelector('#f-pago');
+    const syncAc = () => { acEl.closest('.checkline').hidden = tipoEl.value !== 'despesa' || contaEl.value === 'conjunta' || pagoEl.value === 'cartao'; };
+    [tipoEl, contaEl, pagoEl].forEach(el => el.addEventListener('change', syncAc)); syncAc();
+  }
   if (potEl) {
     const hide = (id, h) => { const el = form.querySelector('#f-'+id); if (el) (el.closest('.field, .checkline')).hidden = h; };
     const sync = () => { const isPot = tipoEl.value === 'vaquinha'; hide('pot', !isPot); hide('cat', isPot); hide('partilhado', isPot); hide('fatura', isPot);
@@ -833,7 +847,10 @@ document.addEventListener('click', async (e) => {
     case 'potMove': potMoveForm(byId('vaquinhas', id), +b.dataset.dir); break;
     case 'potHistory': potHistory(byId('vaquinhas', id)); break;
     case 'potDelMov': { const v = byId('vaquinhas', id); await store.update('vaquinhas', id, {movs:(v.movs||[]).filter(m => m.id !== b.dataset.m)}); closeSheet(); potHistory(byId('vaquinhas', id)); toast('Apagado'); break; }
-    case 'settle': { const open = S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado); for (const r of open) await store.update('orcamento', r.id, {acertado:true}); toast('Contas acertadas'); break; }
+    case 'jointSettle': { const r = byId('orcamento', id); if (!r) break; const undo = !!b.dataset.undo;
+      await store.update('orcamento', id, {acertadoConjunta: !undo}); closeSheet();
+      toast(undo ? 'Acerto desfeito' : `${eur(r.valor)} descontados da conta conjunta`); break; }
+    case 'settle': { const open = S.data.orcamento.filter(r => !isJoint(r) && r.tipo !== 'receita' && r.partilhado && !r.acertado && !r.acertadoConjunta); for (const r of open) await store.update('orcamento', r.id, {acertado:true}); toast('Contas acertadas'); break; }
     case 'newDoc': docForm(); break;
     case 'editDoc': docForm(byId('documentos', id)); break;
     case 'newDay': dayForm(); break;
